@@ -3,7 +3,7 @@
 把散落在不同 AI Agent 目录里的 Skills，集中到本地一处管理、体检和启用。
 
 [![CI](https://github.com/Vieeeeeee/skillhub/actions/workflows/ci.yml/badge.svg)](https://github.com/Vieeeeeee/skillhub/actions/workflows/ci.yml)
-[![npm version](https://img.shields.io/npm/v/@vieeeeeee/skillhub.svg)](https://www.npmjs.com/package/@vieeeeeee/skillhub)
+[![npm version](https://img.shields.io/npm/v/@wsiwsii/skillhub.svg)](https://www.npmjs.com/package/@wsiwsii/skillhub)
 [![Node.js 20+](https://img.shields.io/badge/Node.js-20%2B-339933?logo=node.js&logoColor=white)](package.json)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
@@ -20,7 +20,7 @@ npm 安装需要 Node.js 20 或更新版本；运行源码还需要 Git。
 推荐从 npm 安装公开 CLI：
 
 ```bash
-npm install --global @vieeeeeee/skillhub
+npm install --global @wsiwsii/skillhub
 
 # 先体检和查看，不改 Skill 内容
 skillhub doctor
@@ -45,7 +45,7 @@ npm ci
 ./bin/skillhub open
 ```
 
-更新 npm CLI：`npm install --global @vieeeeeee/skillhub@latest`。更新源码：
+更新 npm CLI：`npm install --global @wsiwsii/skillhub@latest`。更新源码：
 
 ```bash
 git pull --ff-only

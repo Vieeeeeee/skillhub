@@ -3,7 +3,7 @@
 Manage, inspect, and connect AI Agent Skills from one local source of truth.
 
 [![CI](https://github.com/Vieeeeeee/skillhub/actions/workflows/ci.yml/badge.svg)](https://github.com/Vieeeeeee/skillhub/actions/workflows/ci.yml)
-[![npm version](https://img.shields.io/npm/v/@vieeeeeee/skillhub.svg)](https://www.npmjs.com/package/@vieeeeeee/skillhub)
+[![npm version](https://img.shields.io/npm/v/@wsiwsii/skillhub.svg)](https://www.npmjs.com/package/@wsiwsii/skillhub)
 [![Node.js 20+](https://img.shields.io/badge/Node.js-20%2B-339933?logo=node.js&logoColor=white)](package.json)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
@@ -20,7 +20,7 @@ The npm install requires Node.js 20 or newer. Running from source also requires 
 Install the public CLI from npm:
 
 ```bash
-npm install --global @vieeeeeee/skillhub
+npm install --global @wsiwsii/skillhub
 
 # Inspect without changing Skill contents
 skillhub doctor
@@ -45,7 +45,7 @@ npm ci
 ./bin/skillhub open
 ```
 
-Update the npm CLI with `npm install --global @vieeeeeee/skillhub@latest`. Update a source checkout with:
+Update the npm CLI with `npm install --global @wsiwsii/skillhub@latest`. Update a source checkout with:
 
 ```bash
 git pull --ff-only
