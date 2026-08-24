@@ -2,76 +2,337 @@
   {
     "id": "office_collaboration",
     "name": "办公 / 协作",
-    "prefix": ["lark-", "feishu-", "slack-", "notion-"],
-    "keywords": ["office", "collaboration", "calendar", "meeting", "办公", "协作", "日历", "会议"]
-  },
-  {
-    "id": "development",
-    "name": "开发 / 代码",
-    "prefix": ["git-", "codex-"],
-    "keywords": ["code", "coding", "developer", "git", "review", "test", "debug", "tdd", "开发", "代码", "测试", "调试"]
-  },
-  {
-    "id": "agent_skill_tools",
-    "name": "Agent / Skill 工具",
-    "suffix": ["-skill"],
-    "keywords": ["agent", "agents", "skill", "skills", "prompt", "mcp", "智能体", "提示词"]
-  },
-  {
-    "id": "web_browser",
-    "name": "Web / 浏览器",
-    "keywords": ["browser", "web", "website", "crawl", "scrape", "playwright", "puppeteer", "浏览器", "网页", "爬取"]
-  },
-  {
-    "id": "cloud_deploy",
-    "name": "云服务 / 部署",
-    "prefix": ["cloudflare-", "vercel-"],
-    "keywords": ["cloud", "deploy", "deployment", "serverless", "workers", "wrangler", "hosting", "云服务", "部署", "托管"]
-  },
-  {
-    "id": "data_analysis",
-    "name": "数据 / 分析",
-    "keywords": ["data", "database", "analytics", "analysis", "spreadsheet", "sql", "chart", "数据", "分析", "表格", "数据库"]
-  },
-  {
-    "id": "design_frontend",
-    "name": "设计 / 前端",
-    "keywords": ["design", "frontend", "ui", "ux", "tailwind", "css", "html", "figma", "animation", "motion", "设计", "前端", "界面", "动效"]
-  },
-  {
-    "id": "media",
-    "name": "图像 / 音视频",
-    "keywords": ["image", "photo", "video", "audio", "media", "pdf", "slides", "presentation", "transcribe", "图像", "照片", "视频", "音频", "演示文稿"]
-  },
-  {
-    "id": "writing_content",
-    "name": "写作 / 内容",
-    "keywords": ["writer", "writing", "content", "article", "copywriting", "social media", "写作", "内容", "文章", "文案"]
+    "prefix": [
+      "lark-",
+      "feishu-",
+      "slack-",
+      "notion-"
+    ],
+    "keywords": [
+      "lark",
+      "feishu",
+      "slack",
+      "notion",
+      "calendar",
+      "meeting",
+      "飞书",
+      "日历",
+      "会议",
+      "审批",
+      "考勤",
+      "协作"
+    ]
   },
   {
     "id": "mobile",
     "name": "移动端开发",
-    "prefix": ["ios-", "android-"],
-    "keywords": ["ios", "swift", "swiftui", "android", "kotlin", "react native", "expo", "移动端", "手机应用"]
+    "prefix": [
+      "ios-",
+      "android-"
+    ],
+    "keywords": [
+      "ios",
+      "swift",
+      "swiftui",
+      "android",
+      "kotlin",
+      "react native",
+      "expo",
+      "xcode",
+      "移动端",
+      "安卓",
+      "手机应用"
+    ]
   },
   {
-    "id": "automation_bot",
-    "name": "自动化 / Bot",
-    "keywords": ["automation", "workflow", "bot", "telegram", "cron", "自动化", "机器人", "工作流"]
-  },
-  {
-    "id": "security_ops",
-    "name": "安全 / 运维",
-    "keywords": ["security", "secure", "audit", "guard", "health", "ops", "monitor", "network", "安全", "审计", "运维", "监控", "网络"]
+    "id": "cloud_deploy",
+    "name": "云服务 / 部署",
+    "prefix": [
+      "cloudflare-",
+      "vercel-"
+    ],
+    "keywords": [
+      "cloudflare",
+      "vercel",
+      "wrangler",
+      "serverless",
+      "workers",
+      "deploy",
+      "deployment",
+      "hosting",
+      "云服务",
+      "部署",
+      "托管",
+      "上线"
+    ]
   },
   {
     "id": "architecture_space",
     "name": "空间 / 建筑",
-    "keywords": ["architecture", "interior", "renovation", "space design", "floor plan", "建筑", "室内", "装修", "空间设计", "户型"]
+    "keywords": [
+      "architecture",
+      "interior",
+      "renovation",
+      "floor plan",
+      "space design",
+      "建筑",
+      "室内",
+      "装修",
+      "户型",
+      "空间设计",
+      "软装"
+    ]
+  },
+  {
+    "id": "investing_finance",
+    "name": "投资 / 金融",
+    "keywords": [
+      "investment",
+      "investing",
+      "portfolio",
+      "valuation",
+      "earnings",
+      "投资",
+      "股票",
+      "基金",
+      "估值",
+      "财报",
+      "金融",
+      "持仓"
+    ]
+  },
+  {
+    "id": "business_growth",
+    "name": "商业 / 运营",
+    "keywords": [
+      "business model",
+      "marketing",
+      "monetization",
+      "growth",
+      "商业模式",
+      "商业",
+      "营销",
+      "增长",
+      "变现",
+      "对标",
+      "运营"
+    ]
+  },
+  {
+    "id": "design_frontend",
+    "name": "设计 / 前端",
+    "keywords": [
+      "design",
+      "frontend",
+      "ui",
+      "ux",
+      "tailwind",
+      "css",
+      "figma",
+      "animation",
+      "motion",
+      "typography",
+      "设计",
+      "前端",
+      "界面",
+      "动效",
+      "交互",
+      "配色"
+    ]
+  },
+  {
+    "id": "writing_content",
+    "name": "写作 / 内容",
+    "keywords": [
+      "writer",
+      "writing",
+      "copywriting",
+      "article",
+      "blog",
+      "newsletter",
+      "content",
+      "写作",
+      "文案",
+      "文章",
+      "公众号",
+      "小红书",
+      "推文",
+      "日记",
+      "标题",
+      "爆款",
+      "内容创作",
+      "润色"
+    ]
+  },
+  {
+    "id": "media",
+    "name": "图像 / 音视频",
+    "keywords": [
+      "image",
+      "photo",
+      "video",
+      "audio",
+      "podcast",
+      "transcribe",
+      "slides",
+      "presentation",
+      "pptx",
+      "pdf",
+      "图像",
+      "图片",
+      "出图",
+      "生图",
+      "视频",
+      "音频",
+      "配音",
+      "转录",
+      "字幕",
+      "演示文稿",
+      "海报",
+      "封面",
+      "avatar",
+      "illustration",
+      "portrait",
+      "照片",
+      "人像",
+      "头像",
+      "漫画",
+      "插画"
+    ]
+  },
+  {
+    "id": "web_browser",
+    "name": "Web / 浏览器",
+    "keywords": [
+      "browser",
+      "playwright",
+      "puppeteer",
+      "crawl",
+      "scrape",
+      "scraping",
+      "website",
+      "浏览器",
+      "网页",
+      "爬取",
+      "抓取"
+    ]
+  },
+  {
+    "id": "automation_bot",
+    "name": "自动化 / Bot",
+    "keywords": [
+      "automation",
+      "workflow",
+      "telegram",
+      "webhook",
+      "cron",
+      "scheduler",
+      "自动化",
+      "机器人",
+      "工作流",
+      "定时",
+      "推送"
+    ]
+  },
+  {
+    "id": "data_analysis",
+    "name": "数据 / 分析",
+    "keywords": [
+      "database",
+      "analytics",
+      "spreadsheet",
+      "sql",
+      "dataset",
+      "数据",
+      "数据库",
+      "报表",
+      "统计",
+      "表格"
+    ]
+  },
+  {
+    "id": "security_ops",
+    "name": "安全 / 运维",
+    "keywords": [
+      "security",
+      "vulnerability",
+      "firewall",
+      "monitoring",
+      "incident",
+      "安全",
+      "审计",
+      "运维",
+      "监控",
+      "排障",
+      "漏洞",
+      "safety",
+      "guardrail",
+      "防护",
+      "护栏"
+    ]
   },
   {
     "id": "learning_research",
     "name": "学习 / 研究",
-    "keywords": ["learn", "learning", "research", "paper", "education", "study", "学习", "研究", "论文", "教育"]
+    "keywords": [
+      "learning",
+      "research",
+      "education",
+      "study",
+      "学习",
+      "研究",
+      "论文",
+      "教育",
+      "复习"
+    ]
+  },
+  {
+    "id": "development",
+    "name": "开发 / 代码",
+    "prefix": [
+      "git-",
+      "codex-"
+    ],
+    "keywords": [
+      "code",
+      "coding",
+      "developer",
+      "refactor",
+      "debug",
+      "debugging",
+      "tdd",
+      "git",
+      "github",
+      "pull request",
+      "code review",
+      "unit test",
+      "开发",
+      "代码",
+      "调试",
+      "重构",
+      "单元测试",
+      "代码审查"
+    ]
+  },
+  {
+    "id": "agent_skill_tools",
+    "name": "Agent / Skill 工具",
+    "suffix": [
+      "-skill"
+    ],
+    "keywords": [
+      "skill creator",
+      "skill manager",
+      "skills manager",
+      "subagent",
+      "mcp server",
+      "agent skill",
+      "prompt engineering",
+      "技能管理",
+      "技能库"
+    ],
+    "nameContains": [
+      "skill"
+    ]
   }
 ]

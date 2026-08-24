@@ -6,12 +6,13 @@ import { buildRegistry } from "./core/registry.mjs";
 import { buildSyncPlan, applySyncPlan } from "./core/sync.mjs";
 import { runDoctor } from "./core/doctor/index.mjs";
 import { undoLastBackup, listBackups } from "./core/backup.mjs";
-import { toggleAgent, removeSkill, updateSkill } from "./core/ops.mjs";
+import { toggleAgent, removeSkill, updateSkill, setMetadataOverride } from "./core/ops.mjs";
 import { checkSelfUpdate } from "./core/update-check.mjs";
 import { startServer, PORT, HOST } from "../server/server.mjs";
 
 const args = process.argv.slice(2);
 const command = args[0] || "open";
+const UNCLASSIFIED = "其他 / 未分类";
 
 function printUsage() {
   console.log(`
@@ -30,6 +31,9 @@ Commands:
   unlink <name> <ag> Disable a skill for an agent
   update <name>      Pull latest git commits for a skill
   backups            List recent backup sessions
+  pending            List skills still missing a Chinese blurb or a category
+  describe <n> <text>  Write the Chinese blurb for a skill
+  categorize <n> <cat> Set the category for a skill
 
 Options:
   --json             Output raw JSON result
@@ -234,6 +238,60 @@ async function main() {
         console.log(`  • ${b.id} - ${b.manifest.action} [${b.manifest.operations.length} ops]${undone}`);
       }
       console.log("");
+      break;
+    }
+
+    case "pending": {
+      const reg = buildRegistry();
+      const items = [];
+      for (const [name, s] of Object.entries(reg.skills || {})) {
+        const needsZh = !s.zh;
+        const needsCategory = s.category === UNCLASSIFIED;
+        if (!needsZh && !needsCategory) continue;
+        items.push({
+          name,
+          needsZh,
+          needsCategory,
+          category: s.category,
+          description: s.description || "",
+        });
+      }
+      if (jsonMode) {
+        console.log(JSON.stringify({ total: items.length, categories: Object.keys(reg.categories || {}), items }, null, 2));
+        return;
+      }
+      console.log(`\n📝 待补充 ${items.length} 项\n`);
+      for (const it of items) {
+        const need = [it.needsZh ? "中文介绍" : null, it.needsCategory ? "分类" : null].filter(Boolean).join(" + ");
+        console.log(`  ${it.name.padEnd(30)} 缺: ${need}`);
+      }
+      console.log("");
+      break;
+    }
+
+    case "describe": {
+      const name = args[1];
+      const text = args[2];
+      if (!name || text === undefined) {
+        console.error('Usage: skillhub describe <skillName> "<中文介绍>"');
+        process.exit(1);
+      }
+      setMetadataOverride(name, { zh: text });
+      buildRegistry();
+      console.log(`✓ ${name} 的中文介绍已写入`);
+      break;
+    }
+
+    case "categorize": {
+      const name = args[1];
+      const category = args[2];
+      if (!name || !category) {
+        console.error('Usage: skillhub categorize <skillName> "<分类名>"');
+        process.exit(1);
+      }
+      setMetadataOverride(name, { category });
+      buildRegistry();
+      console.log(`✓ ${name} 已归入「${category}」`);
       break;
     }
 

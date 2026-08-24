@@ -448,7 +448,7 @@ function renderDash() {
   const n = vals.length;
   const git = vals.filter(s => s.type === "git" || s.type === "bundle-symlink").length;
   const upd = vals.filter(s => s.hasUpdate === true).length;
-  const issues = vals.filter(hasIssue).length;
+  const issues = vals.filter(hasIssue).length;   // 占位，体检结果回来后由 syncIssueTile 覆盖
 
   $("#tiles").innerHTML = [
     { k:"技能总数", v:n, s:"SSOT 唯一真身", a:"var(--s1)" },
@@ -582,15 +582,20 @@ async function loadHealth(force = false) {
 
 // 看板格子先用结构问题数占位，体检结果回来后换成完整条目数。
 // 两者不同：结构检查只看 frontmatter，密钥泄露、硬编码路径这些都不在其中。
+// Only real breakage deserves a red tile. Suggestions about description length
+// are not an emergency and should not read like one.
 function syncIssueTile(issues) {
   const tile = $("#tile-issues");
   if (!tile) return;
-  const n = issues.length;
-  tile.querySelector(".v").textContent = n;
-  tile.querySelector(".s").textContent = n ? "需人工关注" : "健康状态良好";
-  tile.style.setProperty("--tile-accent", n ? "var(--crit)" : "var(--good)");
-  tile.classList.toggle("alert", n > 0);
-  tile.classList.toggle("ok", n === 0);
+  const broken = issues.filter(i => i.tier === "A").length;
+  const rest = issues.length - broken;
+  tile.querySelector(".v").textContent = broken;
+  tile.querySelector(".s").textContent = broken
+    ? `项需要修复${rest ? ` · 另有 ${rest} 项建议` : ""}`
+    : (rest ? `无损坏 · ${rest} 项可选建议` : "健康状态良好");
+  tile.style.setProperty("--tile-accent", broken ? "var(--crit)" : "var(--good)");
+  tile.classList.toggle("alert", broken > 0);
+  tile.classList.toggle("ok", broken === 0);
 }
 
 function renderHealth(issues) {
@@ -794,6 +799,15 @@ async function handleAction(e) {
 document.body.addEventListener("click", handleAction);
 
 /* ================= 弹窗 ================= */
+// The dropdown offers every category the rules can produce, not only the ones
+// that happen to have members right now.
+function allCategoryNames(current) {
+  const names = new Set(registry.knownCategories || []);
+  for (const c of Object.keys(registry.categories || {})) names.add(c);
+  if (current) names.add(current);
+  return [...names].sort();
+}
+
 function openZhEditor(name) {
   const s = registry.skills[name];
   showModal(`
@@ -805,7 +819,7 @@ function openZhEditor(name) {
     <label>个人备注</label>
     <textarea id="notes-input">${escapeHtml(s.notes || "")}</textarea>
     <label>分类（改动会持久保存到 ~/.skillhub/overrides.json）</label>
-    <select id="cat-input">${Object.keys(registry.categories).map(c => `<option ${c===s.category?"selected":""}>${escapeHtml(c)}</option>`).join("")}</select>
+    <select id="cat-input">${allCategoryNames(s.category).map(c => `<option ${c===s.category?"selected":""}>${escapeHtml(c)}</option>`).join("")}</select>
     <div class="actions"><button id="zh-cancel">取消</button><button id="zh-save" class="primary">保存</button></div>
   `);
   $("#zh-cancel").onclick = closeModal;

@@ -16,6 +16,22 @@ export function loadCategoriesConfig() {
   return [];
 }
 
+const ASCII_ONLY = /^[\x20-\x7e]+$/;
+const _keywordPatterns = new Map();
+
+function matchesKeyword(haystack, keyword) {
+  const k = keyword.toLowerCase();
+  if (!ASCII_ONLY.test(k)) return haystack.includes(k);
+  let re = _keywordPatterns.get(k);
+  if (!re) {
+    const escaped = k.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    // allow a plural form so "photos" still matches the keyword "photo"
+    re = new RegExp(`(^|[^a-z0-9])${escaped}(e?s)?([^a-z0-9]|$)`);
+    _keywordPatterns.set(k, re);
+  }
+  return re.test(haystack);
+}
+
 export function classifySkill(skillName, description = "", categoryOverrides = {}) {
   // 1. Manual user override (highest priority)
   if (categoryOverrides && categoryOverrides[skillName]) {
@@ -40,11 +56,19 @@ export function classifySkill(skillName, description = "", categoryOverrides = {
     if (cat.contains && cat.contains.some((c) => nameLower.includes(c.toLowerCase()))) {
       return cat.name;
     }
+    // Matched against the directory name only. A word like "skill" is useless
+    // in a description (nearly every Skill mentions it) but precise in a name.
+    if (cat.nameContains && cat.nameContains.some((c) => nameLower.includes(c.toLowerCase()))) {
+      return cat.name;
+    }
   }
 
-  // 3. Keyword semantic fallback
+  // 3. Keyword match. ASCII keywords need a word boundary so "test" does not
+  //    match "latest" and "git" does not match "digit"; CJK has no word
+  //    boundaries, so those match as plain substrings.
+  const haystack = `${nameLower} ${descLower}`;
   for (const cat of categories) {
-    if (cat.keywords && cat.keywords.some((k) => nameLower.includes(k.toLowerCase()) || descLower.includes(k.toLowerCase()))) {
+    if (cat.keywords && cat.keywords.some((k) => matchesKeyword(haystack, k))) {
       return cat.name;
     }
   }

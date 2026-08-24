@@ -51,6 +51,28 @@ test("classifySkill applies rules and respects user overrides", () => {
   );
 });
 
+test("classification keeps generic words out of the way of specific ones", () => {
+  // Nearly every description contains the words "skill" and "agent", so they
+  // must not decide the category on their own.
+  assert.equal(classifySkill("photo-tool", "A skill for editing photos."), "图像 / 音视频");
+  assert.equal(classifySkill("agents-sdk", "Build an agent on Cloudflare Workers."), "云服务 / 部署");
+  assert.equal(
+    classifySkill("apple-design", "Interface design and motion. Use when reviewing gesture-driven UI."),
+    "设计 / 前端",
+  );
+
+  // An ASCII keyword needs a word boundary, but a plural still counts.
+  assert.equal(classifySkill("news", "Read the latest release notes."), "其他 / 未分类");
+  assert.equal(classifySkill("gen", "generate images"), "图像 / 音视频");
+
+  // Chinese descriptions are matched as substrings.
+  assert.equal(classifySkill("beta", "写公众号长文的助手"), "写作 / 内容");
+  assert.equal(classifySkill("diary", "每天写日记"), "写作 / 内容");
+
+  // "skill" is useless in a description but precise in a directory name.
+  assert.equal(classifySkill("find-skills", "搜索和安装新的插件"), "Agent / Skill 工具");
+});
+
 test("buildRegistry bootstraps an empty home directory correctly", (t) => {
   const tmp = mkdtempSync(join(tmpdir(), "skillhub-home-test-"));
   t.after(() => rmSync(tmp, { recursive: true, force: true }));

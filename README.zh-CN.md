@@ -141,6 +141,9 @@ link <name> <ag>   为链接型 Agent 启用 Skill
 unlink <name> <ag> 为链接型 Agent 禁用 Skill
 update <name>      快进更新一个 Git Skill 或 bundle
 backups            列出备份 manifest
+pending            列出还缺中文介绍或还没归类的 Skill
+describe <名字> <文本>  写入 Skill 的中文介绍
+categorize <名字> <分类> 设置 Skill 的分类
 
 --json             在支持的命令中输出 JSON
 --apply            配合 sync：只补全缺失链接

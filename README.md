@@ -141,6 +141,9 @@ link <name> <ag>   Enable a Skill for a link-based Agent
 unlink <name> <ag> Disable a Skill for a link-based Agent
 update <name>      Fast-forward one Git-managed Skill or bundle
 backups            List backup manifests
+pending            List skills missing a Chinese blurb or a category
+describe <n> <text>  Write a skill's Chinese blurb
+categorize <n> <cat> Set a skill's category
 
 --json             Print machine-readable output where supported
 --apply            With sync: create missing links only

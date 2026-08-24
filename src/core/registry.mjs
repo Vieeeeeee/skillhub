@@ -13,7 +13,7 @@ import { join, resolve, dirname, isAbsolute, relative, sep } from "node:path";
 import { randomUUID } from "node:crypto";
 import { execFileSync } from "node:child_process";
 import { getPaths, getAgentDirs, RULES_DIR } from "./paths.mjs";
-import { classifySkill } from "./classify.mjs";
+import { classifySkill, loadCategoriesConfig } from "./classify.mjs";
 import { isSymlink, readLinkSafe } from "./link.mjs";
 import { assertSafeName, assertSafeRealPath, isInsideRoot } from "./guard.mjs";
 
@@ -419,6 +419,7 @@ export function buildRegistry(customHome = null) {
     version: 3,
     generatedAt: new Date().toISOString(),
     ssot: paths.SSOT,
+    knownCategories: loadCategoriesConfig().map((c) => c.name),
     agents: {
       ...Object.fromEntries(
         Object.entries(agentDirs)
