@@ -8,7 +8,7 @@
 
 [English](./README.md)
 
-> **当前状态：预发布，只通过 GitHub 提供。** 下方源码安装路径已在 macOS 本机验证，并完成本地打包安装后的跨目录启动测试。Linux 与 Windows 已配置 CI，徽章变绿前仍按“尚未验证”处理。本项目不会发布到 npm registry；这里的 `npm` 只负责安装 Node.js 依赖和运行仓库检查。
+> **当前状态：预发布，只通过 GitHub 提供。** 下方源码安装路径已在 macOS 本机验证，并完成本地打包安装后的跨目录启动测试。当前提交也已通过 Linux、macOS、Windows × Node.js 20/22 的 GitHub Actions 检查。本项目不会发布到 npm registry；这里的 `npm` 只负责安装 Node.js 依赖和运行仓库检查。
 
 SkillHub 把 `~/.agents/skills` 作为 Skill 唯一真身，显示每个 Agent 能否读取、检查常见结构问题，并且只执行用户明确点下或输入的写操作。Web 面板只允许绑定本机回环地址。
 
@@ -139,8 +139,8 @@ backups            列出备份 manifest
 |---|---|---|
 | Node.js | 支持 20+ | CI 当前覆盖 Node 20、22。 |
 | macOS | 本机已验证 | 源码测试和本地打包安装后的面板启动测试已通过。 |
-| Linux | 已配置 CI | 使用前先看当前 CI 徽章，并核对本机 Agent 路径。 |
-| Windows | 已配置 CI | Junction 行为受文件系统策略和权限影响，建议先看 `sync`，再决定是否 `--apply`。 |
+| Linux | CI 已验证 | 当前 GitHub Actions 在 Node.js 20/22 下通过；使用前仍需核对本机 Agent 路径。 |
+| Windows | CI 已验证 | 当前 GitHub Actions 在 Node.js 20/22 下通过。Junction 行为仍受本机文件系统策略和权限影响，建议先看 `sync`，再决定是否 `--apply`。 |
 | Claude、Gemini、Hermes | 链接适配 | 路径可在 `rules/agents.json` 调整。 |
 | Codex | 原生适配 | 使用配置中的共享 Skills 目录；请按本机 Codex 版本复核。 |
 | Cursor | 实验性 | 用于验证配置驱动的 Agent 扩展，目前不宣称完整适配。 |

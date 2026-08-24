@@ -8,7 +8,7 @@ Manage, inspect, and connect AI Agent Skills from one local source of truth.
 
 [中文说明](./README.zh-CN.md)
 
-> **Project status: pre-release and GitHub-only.** The source install below has been verified locally on macOS, including a packaged-install smoke test from a local checkout. Linux and Windows CI are configured but should be treated as unverified until the badge is green. This project is not published to the npm registry; `npm` is used only to install Node.js dependencies and run repository checks.
+> **Project status: pre-release and GitHub-only.** The source install below has been verified locally on macOS, including a packaged-install smoke test from a local checkout. The current commit also passes the GitHub Actions matrix on Linux, macOS, and Windows with Node.js 20 and 22. This project is not published to the npm registry; `npm` is used only to install Node.js dependencies and run repository checks.
 
 SkillHub keeps canonical Skills under `~/.agents/skills`, shows which Agents can see them, checks common structural problems, and creates only the links you explicitly request. The web dashboard stays on your computer and refuses non-loopback bind addresses.
 
@@ -139,8 +139,8 @@ backups            List backup manifests
 |---|---|---|
 | Node.js | Supported: 20+ | CI matrix currently targets Node 20 and 22. |
 | macOS | Locally verified | Source tests and packed global-install/dashboard smoke test passed. |
-| Linux | CI configured | Confirm the current CI badge and Agent paths before relying on it. |
-| Windows | CI configured | Junction behavior depends on filesystem policy and local permissions. Review `sync` before `--apply`. |
+| Linux | CI verified | The current GitHub Actions run passes on Node.js 20 and 22; verify your local Agent paths. |
+| Windows | CI verified | The current GitHub Actions run passes on Node.js 20 and 22. Junction behavior still depends on local filesystem policy and permissions; review `sync` before `--apply`. |
 | Claude, Gemini, Hermes | Link adapters | Paths are configurable in `rules/agents.json`. |
 | Codex | Native adapter | Uses the configured shared Skills directory; verify behavior against your installed Codex version. |
 | Cursor | Experimental | Included to exercise configuration-driven adapters; not claimed as fully verified. |
