@@ -135,6 +135,16 @@ function scanSkillDirectory(dirPath) {
   return { secrets, hardcodedHomes, skipped };
 }
 
+// Findings that carry no decision. Nobody rewrites the description of a Skill
+// they use every day because a rule said it was long, and an incomplete scan is
+// a note about coverage rather than a problem. These stay out of the default
+// list so what remains is the part worth answering.
+const BACKGROUND_RULES = new Set([
+  "long-description",
+  "large-skill-md",
+  "security-scan-incomplete",
+]);
+
 /**
  * A Skill that tracks an upstream source is not the user's to edit — a local
  * change there gets overwritten on the next update. Everything else counts as
@@ -402,6 +412,7 @@ export function runDoctor(registry, customHome = null) {
 
   for (const issue of issues) {
     if (issue.owned === undefined) issue.owned = true;
+    issue.decision = !BACKGROUND_RULES.has(issue.id);
   }
 
   // Sort by Tier (A -> B -> C)

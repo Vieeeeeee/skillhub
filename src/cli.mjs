@@ -130,16 +130,15 @@ async function main() {
       // the default report and out of its headline count.
       const showAll = args.includes("--all");
       const upstream = issues.filter((i) => !i.owned);
-      const shown = showAll ? issues : issues.filter((i) => i.owned);
+      const background = issues.filter((i) => i.owned && !i.decision);
+      const shown = showAll ? issues : issues.filter((i) => i.owned && i.decision);
 
       console.log(`\n🩺 SkillHub Health Doctor Report`);
       console.log(`Found ${shown.length} item(s):\n`);
 
       if (shown.length === 0) {
         console.log(`✅ No issues found by the current inspection rules.\n`);
-        if (upstream.length && !showAll) {
-          console.log(`ℹ ${upstream.length} more in Skills managed upstream. Run with --all to see them.\n`);
-        }
+        printFooter();
         return;
       }
 
@@ -150,10 +149,16 @@ async function main() {
         console.log(`  Reason: ${iss.reason}`);
         console.log(`  Action: ${iss.recommendation}\n`);
       }
-      if (upstream.length && !showAll) {
-        console.log(`ℹ ${upstream.length} more in Skills managed upstream (an upgrade overwrites local edits). Run with --all to see them.\n`);
-      }
+      printFooter();
       break;
+
+      function printFooter() {
+        if (showAll) return;
+        const notes = [];
+        if (background.length) notes.push(`${background.length} background note(s) (long descriptions, large files)`);
+        if (upstream.length) notes.push(`${upstream.length} in Skills managed upstream`);
+        if (notes.length) console.log(`ℹ Not listed: ${notes.join(", ")}. Run with --all to see them.\n`);
+      }
     }
 
     case "sync": {

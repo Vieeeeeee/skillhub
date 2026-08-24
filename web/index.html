@@ -576,12 +576,12 @@ $("#hot-refresh").onclick = () => loadHot(true);
 
 let healthCache = null;
 async function loadHealth(force = false) {
-  if (healthCache && !force) { renderHealth(healthCache); syncIssueTile(healthCache.filter(i => i.owned)); return; }
+  if (healthCache && !force) { renderHealth(healthCache); syncIssueTile(healthCache.filter(i => i.owned && i.decision !== false)); return; }
   try {
     const r = await api("/api/health");
     healthCache = r.issues || [];
     renderHealth(healthCache);
-    syncIssueTile(healthCache.filter(i => i.owned));
+    syncIssueTile(healthCache.filter(i => i.owned && i.decision !== false));
   } catch (e) {
     $("#health-list").innerHTML = `<div class="empty">体检扫描失败: ${escapeHtml(e.message)}</div>`;
   }
@@ -610,15 +610,15 @@ function renderHealth(issues) {
     $("#health-list").innerHTML = `<div class="row"><span class="dot" style="background:var(--good)"></span><span class="grow">本次规则扫描未发现问题</span></div>`;
     return;
   }
-  const mine = issues.filter(i => i.owned);
-  const upstreamCount = issues.length - mine.length;
+  const mine = issues.filter(i => i.owned && i.decision !== false);
+  const asideCount = issues.length - mine.length;
   const tierA = mine.filter(i => i.tier === "A").length;
   const tierB = mine.filter(i => i.tier === "B").length;
   const tierC = mine.filter(i => i.tier === "C").length;
 
   $("#health-list").innerHTML = `
     <div class="row"><span class="dot" style="background:${tierA ? 'var(--crit)' : 'var(--warn)'}"></span>
-      <span class="grow">发现 <b class="num">${mine.length}</b> 项提示 (高危/损坏: ${tierA} · 过时: ${tierB} · 优化: ${tierC})${upstreamCount ? ` <span class="dim">· 另有 ${upstreamCount} 项随上游</span>` : ""}</span>
+      <span class="grow">发现 <b class="num">${mine.length}</b> 项提示 (高危/损坏: ${tierA} · 过时: ${tierB} · 优化: ${tierC})${asideCount ? ` <span class="dim">· 另有 ${asideCount} 项背景信息</span>` : ""}</span>
       <button class="action-btn" onclick="openSync()">查看详情</button>
     </div>`;
 }
@@ -909,7 +909,8 @@ async function openSync() {
     // Findings inside upstream-managed Skills are informational: editing them
     // locally gets undone by the next upgrade. They sit behind a fold so the
     // list shows what the user can actually act on.
-    const mine = issues.filter(i => i.owned);
+    const mine = issues.filter(i => i.owned && i.decision !== false);
+    const background = issues.filter(i => i.owned && i.decision === false);
     const upstream = issues.filter(i => !i.owned);
     const row = iss => `
       <div class="sync-item">
@@ -919,6 +920,13 @@ async function openSync() {
         <div style="color:var(--ink-2); font-size:11px; margin-top:2px">${escapeHtml(iss.reason)} → <i>${escapeHtml(iss.recommendation)}</i></div>
       </div>`;
     const rows = mine.map(row).join("");
+    const backgroundRows = background.length ? `
+      <details style="margin-top:6px">
+        <summary style="cursor:pointer;color:var(--ink-2);font-size:12px;padding:6px 4px">
+          另有 ${background.length} 项背景信息（描述偏长、文件偏大等，不需要你决定什么）
+        </summary>
+        ${background.map(row).join("")}
+      </details>` : "";
     const upstreamRows = upstream.length ? `
       <details style="margin-top:6px">
         <summary style="cursor:pointer;color:var(--ink-2);font-size:12px;padding:6px 4px">
@@ -930,10 +938,11 @@ async function openSync() {
     showModal(`
       <h2>🩺 体检与同步报告</h2>
       <p style="font-size:12px;color:var(--ink-2);margin:4px 0 10px">
-        体检发现 <b>${mine.length}</b> 项你可以处理的建议。执行前请核对操作范围；可回滚的操作会写入备份记录。
+        体检发现 <b>${mine.length}</b> 项需要你判断的。执行前请核对操作范围；可回滚的操作会写入备份记录。
       </p>
       <div style="max-height:46vh;overflow:auto;border:1px solid var(--border);border-radius:8px;padding:6px">
-        ${rows || '<div class="sync-item">✅ 你自己的 Skill 全部体检通过</div>'}
+        ${rows || '<div class="sync-item">✅ 没有需要你决定的问题</div>'}
+        ${backgroundRows}
         ${upstreamRows}
       </div>
       <div class="actions">
