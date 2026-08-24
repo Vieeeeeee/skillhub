@@ -1,0 +1,29 @@
+# Dependencies
+node_modules/
+
+# Local secrets and environment overrides
+.env
+.env.*
+!.env.example
+.npmrc
+
+# Test, coverage, and build artifacts
+coverage/
+dist/
+build/
+*.log
+*.tgz
+
+# Local SkillHub state if SKILL_HUB_HOME points into the repository
+.skillhub/
+
+# Internal planning notes (kept locally, not published)
+PLAN.md
+
+# Editor and operating-system files
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*~

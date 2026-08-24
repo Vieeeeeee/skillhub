@@ -1,0 +1,53 @@
+{
+  "name": "skillhub",
+  "version": "0.2.0",
+  "private": true,
+  "description": "Local-first, portable manager and health doctor for AI Agent Skills",
+  "type": "module",
+  "bin": {
+    "skillhub": "./bin/skillhub",
+    "skill-hub": "./bin/skillhub"
+  },
+  "scripts": {
+    "start": "node server/server.mjs",
+    "test": "node --test test/*.test.mjs",
+    "pack:check": "npm pack --dry-run"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Vieeeeeee/skillhub.git"
+  },
+  "homepage": "https://github.com/Vieeeeeee/skillhub#readme",
+  "bugs": {
+    "url": "https://github.com/Vieeeeeee/skillhub/issues"
+  },
+  "files": [
+    "bin/",
+    "rules/",
+    "server/",
+    "skill/",
+    "src/",
+    "web/",
+    "LICENSE",
+    "README.md",
+    "README.zh-CN.md",
+    "SECURITY.md"
+  ],
+  "keywords": [
+    "agent-skills",
+    "claude-code",
+    "codex",
+    "gemini",
+    "hermes",
+    "skills-manager"
+  ],
+  "author": "Vie",
+  "license": "MIT",
+  "dependencies": {
+    "@hono/node-server": "^1.13.0",
+    "hono": "^4.6.0"
+  }
+}

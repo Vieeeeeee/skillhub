@@ -1,0 +1,53 @@
+{
+  "claude": {
+    "name": "Claude Code",
+    "path": ".claude/skills",
+    "windowsPath": ".claude/skills",
+    "type": "symlink",
+    "relPrefix": "../../.agents/skills/",
+    "triggerPrefix": "/",
+    "status": "verified",
+    "notes": "用户级 ~/.claude/skills，需软链连接至 SSOT"
+  },
+  "codex": {
+    "name": "OpenAI Codex",
+    "path": ".agents/skills",
+    "windowsPath": ".agents/skills",
+    "type": "native",
+    "relPrefix": "",
+    "triggerPrefix": "$",
+    "status": "verified",
+    "secondaryPath": ".codex/skills",
+    "notes": "原生扫描 ~/.agents/skills (SSOT) 及仓库 .agents/skills，无需软链"
+  },
+  "gemini": {
+    "name": "Gemini CLI / Antigravity",
+    "path": ".gemini/config/skills",
+    "windowsPath": ".gemini/config/skills",
+    "type": "symlink",
+    "relPrefix": "../../../.agents/skills/",
+    "triggerPrefix": "/",
+    "status": "verified",
+    "notes": "用户级 ~/.gemini/config/skills，需软链连接至 SSOT"
+  },
+  "hermes": {
+    "name": "Hermes Agent",
+    "path": ".hermes/skills/claude-skills",
+    "windowsPath": ".hermes/skills/claude-skills",
+    "type": "symlink",
+    "relPrefix": "../../../.agents/skills/",
+    "triggerPrefix": "/",
+    "status": "verified",
+    "notes": "用户级 ~/.hermes/skills/claude-skills，需软链连接至 SSOT"
+  },
+  "cursor": {
+    "name": "Cursor",
+    "path": ".cursor/skills",
+    "windowsPath": ".cursor/skills",
+    "type": "symlink",
+    "relPrefix": "../../.agents/skills/",
+    "triggerPrefix": "/",
+    "status": "experimental",
+    "notes": "待调研与测试支持"
+  }
+}

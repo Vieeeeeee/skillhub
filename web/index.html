@@ -1,0 +1,1057 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SkillHub · Agent Skills Manager</title>
+<style>
+:root {
+  --page: #0b0f16;
+  --surface: #10151d;
+  --surface-2: #161d28;
+  --border: rgba(148, 197, 255, 0.10);
+  --border-strong: rgba(148, 197, 255, 0.22);
+  --ink: #eef2f8;
+  --ink-2: #9aa7ba;
+  --ink-mute: #5d6b80;
+  --grid: #1b2330;
+  --accent: #3987e5;
+  --accent-glow: rgba(57, 135, 229, 0.35);
+  --cyan: #22d3ee;
+  --s1: #3987e5; --s2: #199e70; --s3: #c98500; --s4: #9085e9; --s5: #e66767;
+  --good: #0ca30c; --warn: #fab219; --crit: #d03b3b;
+}
+* { box-sizing: border-box; }
+html { color-scheme: dark; }
+body {
+  margin: 0;
+  font: 13px/1.55 system-ui, -apple-system, "PingFang SC", "Segoe UI", sans-serif;
+  background:
+    radial-gradient(1200px 500px at 70% -10%, rgba(57,135,229,.08), transparent 60%),
+    var(--page);
+  color: var(--ink);
+  min-height: 100vh;
+}
+.mono { font-family: ui-monospace, "SF Mono", Menlo, monospace; }
+.num  { font-variant-numeric: tabular-nums; }
+
+/* ---------- header ---------- */
+header {
+  position: sticky; top: 0; z-index: 20;
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 20px;
+  background: rgba(11,15,22,.85);
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid var(--border);
+}
+.logo { display:flex; align-items:baseline; gap:8px; margin-right: 6px; }
+.logo b { font-size: 15px; letter-spacing: .04em; }
+.logo .ver { font-size: 10px; color: var(--cyan); letter-spacing: .12em; text-transform: uppercase; }
+.tabs { display:flex; gap:2px; background: var(--surface); border:1px solid var(--border); border-radius:8px; padding:2px; }
+.tab {
+  padding: 5px 16px; border-radius: 6px; cursor: pointer;
+  color: var(--ink-2); font-size: 12.5px; letter-spacing:.02em;
+  border: none; background: transparent;
+}
+.tab.active { background: var(--surface-2); color: var(--ink); box-shadow: inset 0 0 0 1px var(--border-strong), 0 0 12px -4px var(--accent-glow); }
+.spacer { flex: 1; }
+button {
+  background: var(--surface-2); color: var(--ink);
+  border: 1px solid var(--border); border-radius: 7px;
+  padding: 6px 12px; font: inherit; cursor: pointer;
+  transition: border-color .15s, box-shadow .15s;
+}
+button:hover { border-color: var(--border-strong); box-shadow: 0 0 14px -6px var(--accent-glow); }
+button.primary { background: linear-gradient(180deg, #2f7fe0, #2565b8); border-color: rgba(148,197,255,.35); }
+button:disabled { opacity:.5; cursor:not-allowed; }
+input[type=text], input[type=url], textarea, select {
+  background: var(--page); color: var(--ink);
+  border: 1px solid var(--border); border-radius: 7px;
+  padding: 6px 10px; font: inherit; outline: none;
+}
+input:focus, textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(57,135,229,.15); }
+
+/* ---------- dashboard ---------- */
+#view-dash { max-width: 1280px; margin: 0 auto; padding: 22px 24px 60px; }
+.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
+.tile {
+  background: var(--surface);
+  border: 1px solid var(--border); border-radius: 10px;
+  padding: 14px 16px 12px; position: relative; overflow: hidden;
+}
+.tile::before {
+  content:""; position:absolute; left:0; top:0; bottom:0; width:2px;
+  background: var(--tile-accent, var(--accent)); opacity:.9;
+}
+.tile .k { font-size: 11px; color: var(--ink-2); letter-spacing:.08em; text-transform: uppercase; }
+.tile .v { font-size: 28px; font-weight: 650; margin-top: 2px; line-height:1.1; }
+.tile .s { font-size: 11px; color: var(--ink-mute); margin-top: 3px; }
+.tile.alert .v { color: var(--warn); }
+.tile.ok .v { color: var(--good); }
+
+.panels { display: grid; grid-template-columns: 1.25fr 1fr; gap: 14px; margin-top: 14px; }
+@media (max-width: 980px) { .panels { grid-template-columns: 1fr; } }
+.panel {
+  background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+  padding: 16px 18px;
+}
+.panel h3 {
+  margin: 0 0 12px; font-size: 12px; font-weight: 600;
+  color: var(--ink-2); letter-spacing: .1em; text-transform: uppercase;
+  display:flex; align-items:center; gap:8px;
+}
+.panel h3::after { content:""; flex:1; height:1px; background: var(--border); }
+
+/* bar chart */
+.hbar-row { display: grid; grid-template-columns: 128px 1fr 34px; align-items: center; gap: 10px; padding: 3px 0; }
+.hbar-row .lbl { font-size: 12px; color: var(--ink-2); text-align: right; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.hbar-track { height: 14px; background: var(--grid); border-radius: 4px; position: relative; }
+.hbar-fill {
+  position:absolute; inset:0 auto 0 0; border-radius: 4px;
+  background: linear-gradient(90deg, #1c5cab, var(--s1));
+  min-width: 3px;
+  transition: width .5s cubic-bezier(.2,.8,.2,1);
+}
+.hbar-row:hover .hbar-fill { box-shadow: 0 0 10px -2px var(--accent-glow); }
+.hbar-row .cnt { font-size: 12px; color: var(--ink); }
+
+/* hot leaderboard */
+#hot-body { display:grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 12px; }
+.hot-cat { background: var(--surface-2); border:1px solid var(--border); border-radius: 10px; padding: 12px 14px; }
+.hot-cat h4 { margin: 0 0 8px; font-size: 12px; color: var(--ink-2); letter-spacing:.06em; }
+.hot-row { display:flex; align-items:center; gap:8px; padding: 4px 0; font-size: 12px; min-width:0; }
+.hot-row .rank { width: 16px; color: var(--ink-mute); font-size: 11px; flex:none; text-align:right; }
+.hot-row .rname { color: #7cb3f5; text-decoration:none; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width: 46%; }
+.hot-row .rname:hover { color: var(--cyan); }
+.hot-row .stars { color: var(--warn); font-size: 11px; flex:none; }
+.hot-row .rise { color: var(--cyan); font-size: 10px; flex:none; }
+.hot-row .rdesc { color: var(--ink-mute); font-size: 11px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; flex:1; min-width:0; }
+.hot-row .inst { font-size:10px; color:#4ade80; border:1px solid rgba(12,163,12,.35); border-radius:4px; padding:1px 6px; flex:none; }
+.hot-row .install-btn { font-size:10px; padding:2px 8px; flex:none; }
+
+/* stacked type bar */
+.stack { display:flex; height: 22px; border-radius: 6px; overflow:hidden; gap:2px; background: var(--page); }
+.stack .seg { transition: flex .4s; position:relative; }
+.legend { display:flex; flex-wrap:wrap; gap: 12px 18px; margin-top: 10px; }
+.legend .li { display:flex; align-items:center; gap:6px; font-size:12px; color: var(--ink-2); }
+.legend .sw { width:10px; height:10px; border-radius:3px; }
+
+/* update / health lists */
+.list { display:flex; flex-direction:column; }
+.list .row {
+  display:flex; align-items:center; gap:10px;
+  padding: 7px 8px; border-radius: 7px; font-size: 12.5px;
+}
+.list .row:nth-child(odd) { background: rgba(255,255,255,.02); }
+.list .row .grow { flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.list .row .dim { color: var(--ink-mute); font-size: 11px; }
+.dot { width:7px; height:7px; border-radius:50%; flex:none; }
+.empty { color: var(--ink-mute); font-size: 12.5px; padding: 8px; }
+.action-btn { font-size: 11px; padding: 3px 9px; }
+
+/* ---------- manage view ---------- */
+#view-manage { display: grid; grid-template-columns: 210px 1fr; min-height: calc(100vh - 53px); }
+#sidebar { background: var(--surface); border-right: 1px solid var(--border); padding: 10px; overflow-y: auto; }
+.cat-item {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 6px 10px; border-radius: 6px; cursor: pointer;
+  color: var(--ink-2); font-size: 12px;
+}
+.cat-item:hover { background: var(--surface-2); color: var(--ink); }
+.cat-item.active { background: rgba(57,135,229,.14); color: var(--ink); box-shadow: inset 0 0 0 1px rgba(57,135,229,.3); }
+.cat-item .count { font-size: 11px; opacity: .7; }
+#main { padding: 16px 20px; overflow-x: auto; }
+#filters { display: flex; gap: 8px; margin-bottom: 12px; align-items: center; flex-wrap: wrap; }
+#search { flex: 1; min-width: 200px; }
+table { width: 100%; border-collapse: collapse; font-size: 12px; }
+thead th {
+  text-align: left; padding: 8px 6px;
+  background: var(--surface); position: sticky; top: 53px; z-index: 5;
+  border-bottom: 1px solid var(--border);
+  font-weight: 500; color: var(--ink-2);
+}
+tbody tr { border-bottom: 1px solid var(--border); }
+tbody tr:hover { background: var(--surface); }
+tbody td { padding: 8px 6px; vertical-align: top; }
+.skill-name { font-weight: 600; }
+.skill-name a { color: #7cb3f5; text-decoration: none; }
+.skill-name a:hover { color: var(--cyan); }
+.skill-zh { color: var(--ink-2); font-size: 11px; max-width: 340px; }
+.skill-zh.editable { cursor: text; }
+.skill-zh.editable:hover { color: var(--ink); }
+.trigger-mini { font-family: ui-monospace, Menlo, monospace; font-size: 10px; color: var(--ink-mute); }
+.trigger-mini .warnt { color: var(--s5); }
+.tag { display: inline-block; padding: 1px 6px; border-radius: 3px; font-size: 10px; font-weight: 500; }
+.tag.git { background: rgba(25,158,112,.15); color: #34caa0; }
+.tag.bundle { background: rgba(144,133,233,.15); color: var(--s4); }
+.tag.local { background: rgba(154,167,186,.12); color: var(--ink-2); }
+.tag.symlink { background: rgba(201,133,0,.15); color: #e0a53e; }
+.tag.agentspec { background: rgba(230,103,103,.15); color: var(--s5); }
+.badge { display: inline-block; padding: 1px 6px; border-radius: 3px; font-size: 10px; margin-left: 4px; }
+.badge.tierA { background: rgba(208,59,59,.22); color: #f87171; border: 1px solid rgba(208,59,59,.4); }
+.badge.tierB { background: rgba(250,178,25,.20); color: #fde047; border: 1px solid rgba(250,178,25,.35); }
+.badge.tierC { background: rgba(57,135,229,.20); color: #93c5fd; }
+.badge.canon { background: rgba(57,135,229,.15); color: #7cb3f5; }
+.badge.warnb { background: rgba(208,59,59,.18); color: #f08c8c; }
+.agent-cell { text-align: center; }
+.checkbox {
+  display: inline-block; width: 18px; height: 18px;
+  border: 1px solid var(--border-strong); border-radius: 4px; cursor: pointer;
+  vertical-align: middle; transition: all .15s;
+}
+.checkbox.checked { background: var(--accent); border-color: var(--accent); box-shadow: 0 0 8px -2px var(--accent-glow); }
+.checkbox.checked::after { content: "✓"; color: #fff; font-size: 11px; line-height: 16px; display: block; text-align: center; }
+.native-dot { color: #34caa0; font-size: 13px; }
+
+/* ---------- modal / toast ---------- */
+#modal-bg { display: none; position: fixed; inset: 0; background: rgba(4,7,12,.7); backdrop-filter: blur(3px); z-index: 100; align-items: center; justify-content: center; }
+#modal-bg.show { display: flex; }
+.modal {
+  background: var(--surface); border: 1px solid var(--border-strong); border-radius: 12px;
+  width: 620px; max-width: 92vw; padding: 20px;
+  max-height: 85vh; overflow-y: auto;
+  box-shadow: 0 20px 60px rgba(0,0,0,.5), 0 0 40px -20px var(--accent-glow);
+}
+.modal h2 { margin: 0 0 12px; font-size: 16px; }
+.modal label { display: block; margin: 10px 0 4px; font-size: 12px; color: var(--ink-2); }
+.modal input, .modal textarea, .modal select { width: 100%; font-family: inherit; }
+.modal textarea { min-height: 80px; resize: vertical; }
+.modal .actions { margin-top: 16px; display: flex; gap: 8px; justify-content: flex-end; }
+.modal pre { background: var(--page); padding: 10px; border-radius: 8px; font-size: 11px; max-height: 300px; overflow: auto; border: 1px solid var(--border); }
+.sync-item { padding: 6px 10px; border-radius: 5px; font-size: 11.5px; font-family: ui-monospace, Menlo, monospace; margin-bottom: 2px; }
+.sync-item:nth-child(odd) { background: var(--surface-2); }
+.sync-kind { font-weight: 600; margin-right: 6px; }
+.toast {
+  position: fixed; bottom: 20px; right: 20px;
+  background: var(--surface); border: 1px solid var(--border-strong);
+  padding: 10px 16px; border-radius: 9px;
+  z-index: 200; max-width: 400px;
+  box-shadow: 0 6px 24px rgba(0,0,0,.5);
+}
+.toast.error { border-color: var(--crit); color: #fca5a5; }
+.toast.ok { border-color: var(--good); color: #86efac; }
+.commit-mini { font-family: ui-monospace, Menlo, monospace; font-size: 10px; color: var(--ink-mute); }
+.origin-link { color: var(--ink-2); font-size: 10px; text-decoration: none; }
+.origin-link:hover { color: #7cb3f5; }
+</style>
+</head>
+<body>
+<header>
+  <div class="logo">
+    <b>⬢ SKILLHUB</b>
+    <span class="ver mono" id="app-ver">v0.2.0</span>
+    <span id="self-update-badge" style="display:none; margin-left:4px"></span>
+  </div>
+  <div class="tabs">
+    <button class="tab active" data-view="dash">看板</button>
+    <button class="tab" data-view="manage">管理</button>
+  </div>
+  <span class="spacer"></span>
+  <button id="btn-add">+ 添加</button>
+  <button id="btn-trash">🗑 回收站</button>
+  <button id="btn-sync">🩺 体检/同步</button>
+  <button id="btn-undo">↩︎ 撤销 (Undo)</button>
+  <button id="btn-update-all">⟳ 更新全部</button>
+  <button id="btn-refresh">↻ 重新扫描</button>
+</header>
+
+<!-- ================= 看板 ================= -->
+<section id="view-dash">
+  <div class="tiles" id="tiles"></div>
+  <div class="panels">
+    <div class="panel">
+      <h3>分类分布</h3>
+      <div id="chart-cats"></div>
+    </div>
+    <div style="display:flex; flex-direction:column; gap:14px;">
+      <div class="panel">
+        <h3>类型构成</h3>
+        <div class="stack" id="chart-types"></div>
+        <div class="legend" id="legend-types"></div>
+      </div>
+      <div class="panel">
+        <h3>上游更新 <span class="mono" id="upd-meta" style="font-size:10px;letter-spacing:0"></span></h3>
+        <div class="list" id="upd-list"></div>
+      </div>
+      <div class="panel">
+        <h3>健康体检报告</h3>
+        <div class="list" id="health-list"><div class="empty">扫描中…</div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel" style="margin-top:14px">
+    <h3>🔥 GitHub 热门 skills
+      <span class="mono" id="hot-meta" style="font-size:10px;letter-spacing:0"></span>
+      <button class="action-btn" id="hot-refresh" style="margin-left:auto">↻ 刷新榜单</button>
+    </h3>
+    <div id="hot-body"><div class="empty">加载中…</div></div>
+  </div>
+</section>
+
+<!-- ================= 管理 ================= -->
+<section id="view-manage" style="display:none">
+  <aside id="sidebar">
+    <div class="cat-item active" data-cat="__all__"><span>全部</span><span class="count" id="cnt-all">0</span></div>
+    <div class="cat-item" data-cat="__git__"><span>📦 git 源</span><span class="count" id="cnt-git">0</span></div>
+    <div class="cat-item" data-cat="__local__"><span>📁 本地</span><span class="count" id="cnt-local">0</span></div>
+    <div class="cat-item" data-cat="__updates__"><span>🟠 有更新</span><span class="count" id="cnt-upd">0</span></div>
+    <div class="cat-item" data-cat="__issues__"><span>⚠️ 体检告警</span><span class="count" id="cnt-issues">0</span></div>
+    <div class="cat-item" data-cat="__needs_zh__"><span>🌐 待补中文</span><span class="count" id="cnt-zh">0</span></div>
+    <div style="height:8px"></div>
+    <div style="font-size:11px; color: var(--ink-mute); padding: 4px 10px;">分类</div>
+    <div id="cat-list"></div>
+  </aside>
+  <main id="main">
+    <div id="filters">
+      <input type="text" id="search" placeholder="搜索 skill 名 / 描述 / 中文…">
+      <select id="agent-filter">
+        <option value="">所有 Agent</option>
+      </select>
+    </div>
+    <table>
+      <thead>
+        <tr id="skill-table-head"></tr>
+      </thead>
+      <tbody id="tbl-body"></tbody>
+    </table>
+  </main>
+</section>
+
+<div id="modal-bg"><div class="modal"><div id="modal-content"></div></div></div>
+
+<script>
+let registry = null;
+let activeCategory = "__all__";
+let currentView = "dash";
+let sessionToken = "";
+
+const $ = s => document.querySelector(s);
+const $$ = s => document.querySelectorAll(s);
+
+const TYPE_META = [
+  ["git",            "git 独立仓",  "var(--s2)"],
+  ["bundle-symlink", "bundle 成员", "var(--s4)"],
+  ["local",          "本地目录",    "var(--s1)"],
+  ["symlink",        "外部软链",    "var(--s3)"],
+  ["agent-specific", "Agent 变体",  "var(--s5)"],
+];
+
+function escapeHtml(s) {
+  if (s === undefined || s === null) return "";
+  return String(s).replace(/[&<>"']/g, c => ({
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    '"': "&quot;",
+    "'": "&#39;"
+  }[c]));
+}
+
+function sanitizeUrl(url) {
+  if (!url || typeof url !== "string") return "";
+  const trimmed = url.trim();
+  if (trimmed.startsWith("https://") || trimmed.startsWith("http://")) {
+    return trimmed;
+  }
+  return "";
+}
+
+async function ensureToken() {
+  if (sessionToken) return sessionToken;
+  try {
+    const res = await fetch("/api/session");
+    const d = await res.json();
+    if (d.ok && d.token) {
+      sessionToken = d.token;
+    }
+  } catch {}
+  return sessionToken;
+}
+
+async function api(path, opts = {}) {
+  await ensureToken();
+  const headers = {
+    "Content-Type": "application/json",
+    ...(opts.headers || {}),
+  };
+  if (sessionToken) {
+    headers["X-SkillHub-Token"] = sessionToken;
+  }
+
+  const r = await fetch(path, { ...opts, headers });
+  const data = await r.json();
+  if (!r.ok || data.ok === false) {
+    const error = new Error(data.error || `HTTP ${r.status}`);
+    error.data = data;
+    throw error;
+  }
+  return data;
+}
+
+function toast(msg, kind = "") {
+  const el = document.createElement("div");
+  el.className = "toast " + kind;
+  el.textContent = msg;
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 3500);
+}
+
+function hasIssue(s) {
+  return s.nameMismatch || !s.hasSkillMd || s.hasName === false || s.hasDescription === false;
+}
+
+function configuredAgents() {
+  return Object.entries(registry?.agentMeta || {}).map(([key, meta]) => ({ key, ...meta }));
+}
+
+function shortAgentName(agent) {
+  return (agent.name || agent.key).replace(/\s+(Code|CLI|Agent).*$/i, "").split(" /")[0];
+}
+
+function renderAgentControls() {
+  const agents = configuredAgents();
+  const filter = $("#agent-filter");
+  const selected = filter.value;
+  filter.innerHTML = '<option value="">所有 Agent</option>' + agents.map(agent => {
+    const label = escapeHtml(shortAgentName(agent));
+    return `<option value="${escapeHtml(agent.key)}">${agent.type === "native" ? "可见" : "已链"} ${label}</option>` +
+      (agent.type === "native" ? "" : `<option value="${escapeHtml(agent.key)}-off">未链 ${label}</option>`);
+  }).join("");
+  if ([...filter.options].some(option => option.value === selected)) filter.value = selected;
+
+  $("#skill-table-head").innerHTML = `
+    <th style="width:185px">名称 / 触发词</th>
+    <th>中文介绍与备注</th>
+    <th style="width:70px">类型</th>
+    <th style="width:110px">来源溯源</th>
+    ${agents.map(agent => `<th style="width:56px" class="agent-cell" title="${escapeHtml(agent.name)} · ${escapeHtml(agent.path)}">${escapeHtml(shortAgentName(agent))}</th>`).join("")}
+    <th style="width:118px">操作</th>`;
+}
+
+/* ================= 数据加载 ================= */
+async function load() {
+  await ensureToken();
+  registry = await api("/api/registry");
+  healthCache = null;
+  renderAgentControls();
+  renderDash();
+  renderSidebar();
+  renderTable();
+  updateStats();
+}
+
+/* ================= 看板 ================= */
+function renderDash() {
+  const sk = Object.entries(registry.skills || {});
+  const vals = sk.map(([,s]) => s);
+  const n = vals.length;
+  const git = vals.filter(s => s.type === "git" || s.type === "bundle-symlink").length;
+  const upd = vals.filter(s => s.hasUpdate === true).length;
+  const issues = vals.filter(hasIssue).length;
+
+  $("#tiles").innerHTML = [
+    { k:"技能总数", v:n, s:"SSOT 唯一真身", a:"var(--s1)" },
+    ...configuredAgents().map(agent => {
+      const count = vals.filter(s => s.agents?.[agent.key]).length;
+      return {
+        k: `${shortAgentName(agent)} ${agent.type === "native" ? "可见" : "已链"}`,
+        v: count,
+        s: agent.type === "native" ? "原生扫描" : `${n-count} 未启用`,
+        a: "var(--s2)",
+      };
+    }),
+    { k:"Git 追踪", v:git, s:"支持一键拉取", a:"var(--s4)" },
+    { k:"待更新", v:upd, s: upd ? "有上游新版本" : "全部最新", a: upd ? "var(--warn)" : "var(--good)", cls: upd ? "alert" : "ok" },
+    { k:"体检告警", v:issues, s: issues ? "需人工关注" : "健康状态良好", a: issues ? "var(--crit)" : "var(--good)", cls: issues ? "alert" : "ok" },
+  ].map(t => `
+    <div class="tile ${t.cls||""}" style="--tile-accent:${t.a}">
+      <div class="k">${t.k}</div>
+      <div class="v num">${t.v}</div>
+      <div class="s">${t.s}</div>
+    </div>`).join("");
+
+  const cats = Object.entries(registry.categories || {})
+    .map(([c, names]) => [c, names.length]).sort((a,b) => b[1]-a[1]);
+  const max = Math.max(...cats.map(c => c[1]), 1);
+  $("#chart-cats").innerHTML = cats.map(([c, v]) => `
+    <div class="hbar-row" title="${escapeHtml(c)}：${v} 个">
+      <div class="lbl">${escapeHtml(c)}</div>
+      <div class="hbar-track"><div class="hbar-fill" style="width:${(v/max*100).toFixed(1)}%"></div></div>
+      <div class="cnt num">${v}</div>
+    </div>`).join("");
+
+  const typeCounts = TYPE_META.map(([key, label, color]) =>
+    [label, vals.filter(s => s.type === key).length, color]).filter(x => x[1] > 0);
+  $("#chart-types").innerHTML = typeCounts.map(([label, v, color]) =>
+    `<div class="seg" style="flex:${v}; background:${color}" title="${label}: ${v}"></div>`).join("");
+  $("#legend-types").innerHTML = typeCounts.map(([label, v, color]) =>
+    `<span class="li"><span class="sw" style="background:${color}"></span>${label} <b class="num">${v}</b></span>`).join("");
+
+  const updSkills = sk.filter(([,s]) => s.hasUpdate === true);
+  const seen = new Set();
+  const updRows = [];
+  for (const [name, s] of updSkills) {
+    const key = s.bundle || name;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    const extra = s.bundle ? sk.filter(([,x]) => x.bundle === s.bundle && x.hasUpdate).length : 1;
+    updRows.push({ name, bundle: s.bundle, latest: s.latestUpstream, extra });
+  }
+  const lastChecked = vals.map(s => s.lastChecked).filter(Boolean).sort().pop();
+  $("#upd-meta").textContent = lastChecked ? `上次扫描 ${lastChecked.slice(0,16).replace("T"," ")}` : "尚未扫描";
+  $("#upd-list").innerHTML = updRows.length ? updRows.map(r => `
+    <div class="row">
+      <span class="dot" style="background:var(--warn)"></span>
+      <span class="grow">${escapeHtml(r.bundle || r.name)}${r.extra > 1 ? ` <span class="dim">(${r.extra} skills)</span>` : ""}</span>
+      <span class="dim mono">→ ${escapeHtml(r.latest || "?")}</span>
+      <button class="action-btn" data-action="update" data-name="${escapeHtml(r.name)}">⟳ 更新</button>
+    </div>`).join("")
+    : `<div class="empty">✅ 没有待更新的上游</div>`;
+
+  loadHealth();
+  loadHot();
+}
+
+/* ----- GitHub 热榜 ----- */
+let hotLoaded = false;
+function fmtStars(n) {
+  return n >= 1000 ? (n/1000).toFixed(n >= 10000 ? 0 : 1) + "k" : String(n);
+}
+
+async function loadHot(force = false) {
+  if (hotLoaded && !force) return;
+  $("#hot-body").innerHTML = '<div class="empty">'+(force?'正在抓取 GitHub…（约 10 秒）':'加载中…')+'</div>';
+  try {
+    const r = await api("/api/hot" + (force ? "?force=1" : ""));
+    hotLoaded = true;
+    $("#hot-meta").textContent = `榜单时间 ${r.fetchedAt.slice(0,16).replace("T"," ")} · 扫描 ${r.totalScanned} 仓库`;
+    const cats = Object.entries(r.categories || {});
+    $("#hot-body").innerHTML = cats.map(([cat, list]) => `
+      <div class="hot-cat">
+        <h4>${escapeHtml(cat)}</h4>
+        ${list.map((x,i) => `
+          <div class="hot-row" title="${escapeHtml(x.description)}${x.rising?'\n⚡ 近 90 天新仓，日均 +'+x.starsPerDay+' 星':''}">
+            <span class="rank num">${i+1}</span>
+            <a class="rname" href="${escapeHtml(sanitizeUrl(x.url))}" target="_blank" rel="noopener noreferrer">${escapeHtml(x.repo)}</a>
+            <span class="stars num">★${fmtStars(x.stars)}</span>
+            ${x.rising ? '<span class="rise">⚡飙升</span>' : ''}
+            <span class="rdesc">${escapeHtml(x.description)}</span>
+            ${x.installed
+              ? '<span class="inst">✓ 已安装</span>'
+              : (x.installable === false
+                ? `<span class="inst" title="${escapeHtml(x.installNote || '')}">多 Skill 仓库</span>`
+                : `<button class="install-btn" data-hot-install="${escapeHtml(x.repo)}">＋ 安装</button>`)}
+          </div>`).join("")}
+      </div>`).join("") || '<div class="empty">暂无数据，点「刷新榜单」重试</div>';
+    $$("[data-hot-install]").forEach(btn => btn.onclick = () => hotInstall(btn.dataset.hotInstall, btn));
+  } catch (e) {
+    $("#hot-body").innerHTML = `<div class="empty">热榜加载失败：${escapeHtml(e.message)}</div>`;
+  }
+}
+
+async function hotInstall(repo, btn) {
+  if (!confirm(`安装 ${repo}？\n\nSkillHub 只检查仓库结构、大小和超时，不会证明其中的 Skill 或脚本安全。请先阅读仓库内容，并只安装你信任的来源。`)) return;
+  btn.disabled = true; btn.textContent = "安装中…";
+  try {
+    const r = await api("/api/add", { method: "POST", body: JSON.stringify({ gitUrl: "https://github.com/" + repo }) });
+    toast(`✓ 已安装 ${r.name}`, "ok");
+    await load();
+    hotLoaded = false;
+    await loadHot(false);
+  } catch (e) {
+    toast("安装失败：" + e.message, "error");
+    btn.disabled = false; btn.textContent = "＋ 安装";
+  }
+}
+
+$("#hot-refresh").onclick = () => loadHot(true);
+
+let healthCache = null;
+async function loadHealth(force = false) {
+  if (healthCache && !force) { renderHealth(healthCache); return; }
+  try {
+    const r = await api("/api/health");
+    healthCache = r.issues || [];
+    renderHealth(healthCache);
+  } catch (e) {
+    $("#health-list").innerHTML = `<div class="empty">体检扫描失败: ${escapeHtml(e.message)}</div>`;
+  }
+}
+
+function renderHealth(issues) {
+  if (!issues.length) {
+    $("#health-list").innerHTML = `<div class="row"><span class="dot" style="background:var(--good)"></span><span class="grow">本次规则扫描未发现问题</span></div>`;
+    return;
+  }
+  const tierA = issues.filter(i => i.tier === "A").length;
+  const tierB = issues.filter(i => i.tier === "B").length;
+  const tierC = issues.filter(i => i.tier === "C").length;
+
+  $("#health-list").innerHTML = `
+    <div class="row"><span class="dot" style="background:${tierA ? 'var(--crit)' : 'var(--warn)'}"></span>
+      <span class="grow">发现 <b class="num">${issues.length}</b> 项提示 (高危/损坏: ${tierA} · 过时: ${tierB} · 优化: ${tierC})</span>
+      <button class="action-btn" onclick="openSync()">查看详情</button>
+    </div>`;
+}
+
+/* ================= 视图切换 ================= */
+$$(".tab").forEach(t => t.onclick = () => {
+  currentView = t.dataset.view;
+  $$(".tab").forEach(x => x.classList.toggle("active", x === t));
+  $("#view-dash").style.display = currentView === "dash" ? "" : "none";
+  $("#view-manage").style.display = currentView === "manage" ? "" : "none";
+});
+
+/* ================= 管理页 ================= */
+function updateStats() {
+  const vals = Object.values(registry.skills || {});
+  $("#cnt-all").textContent = vals.length;
+  $("#cnt-git").textContent = vals.filter(s => s.type === "git" || s.type === "bundle-symlink").length;
+  $("#cnt-local").textContent = vals.filter(s => s.type === "local").length;
+  $("#cnt-upd").textContent = vals.filter(s => s.hasUpdate === true).length;
+  $("#cnt-zh").textContent = vals.filter(s => !s.zh).length;
+  $("#cnt-issues").textContent = vals.filter(hasIssue).length;
+}
+
+function renderSidebar() {
+  const list = $("#cat-list");
+  list.innerHTML = "";
+  const cats = Object.entries(registry.categories || {}).sort((a, b) => b[1].length - a[1].length);
+  for (const [cat, names] of cats) {
+    const div = document.createElement("div");
+    div.className = "cat-item";
+    div.dataset.cat = cat;
+    div.innerHTML = `<span>${escapeHtml(cat)}</span><span class="count">${names.length}</span>`;
+    list.appendChild(div);
+  }
+  $$(".cat-item").forEach(item => {
+    item.classList.toggle("active", item.dataset.cat === activeCategory);
+    item.onclick = () => { activeCategory = item.dataset.cat; renderSidebar(); renderTable(); };
+  });
+}
+
+function getFilteredSkills() {
+  const q = $("#search").value.toLowerCase().trim();
+  const agentFilter = $("#agent-filter").value;
+  let entries = Object.entries(registry.skills || {});
+  if (activeCategory === "__git__") entries = entries.filter(([,s]) => s.type === "git" || s.type === "bundle-symlink");
+  else if (activeCategory === "__local__") entries = entries.filter(([,s]) => s.type === "local");
+  else if (activeCategory === "__updates__") entries = entries.filter(([,s]) => s.hasUpdate === true);
+  else if (activeCategory === "__needs_zh__") entries = entries.filter(([,s]) => !s.zh);
+  else if (activeCategory === "__issues__") entries = entries.filter(([,s]) => hasIssue(s));
+  else if (activeCategory !== "__all__") entries = entries.filter(([,s]) => s.category === activeCategory);
+  if (agentFilter) {
+    const [ag, off] = agentFilter.endsWith("-off") ? [agentFilter.slice(0, -4), true] : [agentFilter, false];
+    entries = entries.filter(([,s]) => off ? !s.agents[ag] : s.agents[ag]);
+  }
+  if (q) {
+    entries = entries.filter(([n, s]) =>
+      n.toLowerCase().includes(q) ||
+      (s.description || "").toLowerCase().includes(q) ||
+      (s.zh || "").toLowerCase().includes(q) ||
+      (s.notes || "").toLowerCase().includes(q));
+  }
+  entries.sort((a, b) => {
+    if (a[1].category !== b[1].category) return a[1].category.localeCompare(b[1].category);
+    return a[0].localeCompare(b[0]);
+  });
+  return entries;
+}
+
+function renderTable() {
+  const body = $("#tbl-body");
+  body.innerHTML = "";
+  for (const [name, s] of getFilteredSkills()) {
+    const tr = document.createElement("tr");
+    const trig = s.triggers || {};
+    const triggerText = Object.values(trig).slice(0, 3).join(" · ") || name;
+    const trigHtml = s.nameMismatch
+      ? `<span class="warnt" title="frontmatter name 与目录名不一致">${escapeHtml(triggerText)}</span>`
+      : escapeHtml(triggerText);
+    const typeLabel = s.type === "agent-specific" ? "双版本" : (s.type === "local" ? "本地文件" : s.type);
+    tr.innerHTML = `
+      <td>
+        <div class="skill-name"><a href="#" data-action="readme" data-name="${escapeHtml(name)}">${escapeHtml(name)}</a>${renderStatusBadges(s)}</div>
+        <div class="trigger-mini">${trigHtml}</div>
+        <div class="commit-mini">${escapeHtml(s.category)}</div>
+      </td>
+      <td>
+        <div class="skill-zh editable" data-action="edit-zh" data-name="${escapeHtml(name)}">
+          ${s.zh ? escapeHtml(s.zh) : '<i style="opacity:.5">点击补充中文介绍…</i>'}
+        </div>
+        ${s.notes ? `<div class="commit-mini" style="margin-top:3px">📝 ${escapeHtml(s.notes)}</div>` : ""}
+      </td>
+      <td><span class="tag ${s.type === 'bundle-symlink' ? 'bundle' : (s.type === 'agent-specific' ? 'agentspec' : s.type)}">${escapeHtml(typeLabel)}</span></td>
+      <td>${renderOrigin(s)}</td>
+      ${configuredAgents().map(agent => `<td class="agent-cell">${renderAgentCell(name, s, agent)}</td>`).join("")}
+      <td>${renderActions(name, s)}${s.type === "agent-specific" ? "" : `<button class="action-btn" data-action="remove" data-name="${escapeHtml(name)}" title="卸载">×</button>`}</td>
+    `;
+    body.appendChild(tr);
+  }
+}
+
+function renderAgentCell(name, s, agent) {
+  if (s.type === "agent-specific") {
+    return s.agents[agent.key] ? '<span class="native-dot" title="agent 专属版本">●</span>' : '<span style="opacity:.3">—</span>';
+  }
+  if (agent.type === "native") {
+    return s.agents[agent.key] ? '<span class="native-dot" title="原生扫描 SSOT，自动可见">●</span>' : '<span style="opacity:.3">—</span>';
+  }
+  return `<span class="checkbox ${s.agents[agent.key] ? 'checked' : ''}" data-action="toggle" data-name="${escapeHtml(name)}" data-agent="${escapeHtml(agent.key)}"></span>`;
+}
+
+function renderOrigin(s) {
+  const src = s.origin || s.verifiedSource || s.inferredSource || "";
+  if (!src) {
+    return '<span style="color:var(--ink-mute); font-size:10px" title="本地目录，来源未知">来源未知</span>';
+  }
+  let url = src;
+  if (url.startsWith("github:")) url = "https://github.com/" + url.slice(7);
+  if (url.startsWith("git@github.com:")) url = "https://github.com/" + url.slice(15).replace(/\.git$/, "");
+  if (url.endsWith(".git")) url = url.slice(0, -4);
+
+  const safeUrl = sanitizeUrl(url);
+  const display = (src.match(/[\w-]+\/[\w.-]+?(?=(\.git)?$)/) || [src])[0];
+  const sourceLabel = !s.origin && s.verifiedSource
+    ? '<span style="color:var(--ink-mute); font-size:10px">(已识别) </span>'
+    : (!s.origin && s.inferredSource ? '<span style="color:var(--ink-mute); font-size:10px">(推测) </span>' : "");
+
+  if (safeUrl) {
+    return `${sourceLabel}<a class="origin-link" href="${escapeHtml(safeUrl)}" target="_blank" rel="noopener noreferrer">${escapeHtml(display)}</a>${s.commit ? `<div class="commit-mini">${escapeHtml(s.commit.split(" ")[0])}</div>` : ""}`;
+  }
+  return `${sourceLabel}<span class="origin-link" style="font-style:italic">${escapeHtml(src.length > 26 ? src.slice(0, 26) + "…" : src)}</span>`;
+}
+
+function renderActions(name, s) {
+  if (s.localCanonical || s.type === "agent-specific") return "";
+  if (s.type === "git" || s.type === "bundle-symlink") {
+    if (s.hasUpdate === true) return `<button class="action-btn" data-action="update" data-name="${escapeHtml(name)}" title="上游 ${escapeHtml(s.latestUpstream)}">⟳ 更新</button>`;
+    return "";
+  }
+  return "";
+}
+
+function renderStatusBadges(s) {
+  const out = [];
+  if (s.managed) out.push(`<span class="badge canon" title="由 ${escapeHtml(s.managed)} 工具自管">🔧 ${escapeHtml(s.managed)}</span>`);
+  if (s.nameMismatch) out.push('<span class="badge warnb" title="frontmatter name 与目录名不一致">⚠ 名字</span>');
+  if (!s.hasSkillMd) out.push('<span class="badge warnb" title="缺 SKILL.md">⚠ 缺MD</span>');
+  if (s.hasSkillMd && s.hasName === false) out.push('<span class="badge warnb" title="frontmatter 缺 name">⚠ 缺name</span>');
+  if (s.hasSkillMd && s.hasDescription === false) out.push('<span class="badge warnb" title="frontmatter 缺 description">⚠ 缺描述</span>');
+  if (s.localCanonical) out.push('<span class="badge canon" title="本地是权威版本">⭐</span>');
+  else if (s.hasUpdate === true) out.push(`<span class="badge tierB" title="上游 ${escapeHtml(s.latestUpstream)} 有新版本">🟠 有更新</span>`);
+  return out.join("");
+}
+
+/* ================= 动作事件委托 ================= */
+async function handleAction(e) {
+  const t = e.target.closest("[data-action]");
+  if (!t) return;
+  e.preventDefault();
+  const action = t.dataset.action;
+  const name = t.dataset.name;
+  try {
+    if (action === "toggle") {
+      const agent = t.dataset.agent;
+      const current = t.classList.contains("checked");
+      await api("/api/toggle", { method: "POST", body: JSON.stringify({ name, agent, enabled: !current }) });
+      toast(`${name}: ${agent} ${!current ? "已启用" : "已禁用"}`, "ok");
+      await load();
+    } else if (action === "update") {
+      t.disabled = true; t.textContent = "更新中…";
+      const r = await api(`/api/update/${encodeURIComponent(name)}`, { method: "POST" });
+      toast(`${name}: 已拉取最新代码`, "ok");
+      await load();
+    } else if (action === "remove") {
+      openUninstall(name);
+    } else if (action === "edit-zh") {
+      openZhEditor(name);
+    } else if (action === "readme") {
+      openReadme(name);
+    }
+  } catch (err) {
+    toast(err.message, "error");
+    await load();
+  }
+}
+document.body.addEventListener("click", handleAction);
+
+/* ================= 弹窗 ================= */
+function openZhEditor(name) {
+  const s = registry.skills[name];
+  showModal(`
+    <h2>${escapeHtml(name)}</h2>
+    <label>原始 description (来自 SKILL.md)</label>
+    <pre>${escapeHtml(s.description || "(空)")}</pre>
+    <label>中文介绍</label>
+    <textarea id="zh-input">${escapeHtml(s.zh || "")}</textarea>
+    <label>个人备注</label>
+    <textarea id="notes-input">${escapeHtml(s.notes || "")}</textarea>
+    <label>分类（改动会持久保存到 ~/.skillhub/overrides.json）</label>
+    <select id="cat-input">${Object.keys(registry.categories).map(c => `<option ${c===s.category?"selected":""}>${escapeHtml(c)}</option>`).join("")}</select>
+    <div class="actions"><button id="zh-cancel">取消</button><button id="zh-save" class="primary">保存</button></div>
+  `);
+  $("#zh-cancel").onclick = closeModal;
+  $("#zh-save").onclick = async () => {
+    const button = $("#zh-save");
+    button.disabled = true;
+    try {
+      await api(`/api/skill/${encodeURIComponent(name)}/meta`, { method: "POST", body: JSON.stringify({
+        zh: $("#zh-input").value, notes: $("#notes-input").value, category: $("#cat-input").value }) });
+      toast("已保存元数据", "ok");
+      closeModal();
+      await load();
+    } catch (e) {
+      toast(`保存失败：${e.message}`, "error");
+      button.disabled = false;
+    }
+  };
+}
+
+async function openReadme(name) {
+  showModal(`<h2>${escapeHtml(name)}</h2><pre>加载中…</pre>`);
+  try {
+    const r = await api(`/api/skill/${encodeURIComponent(name)}/readme`);
+    showModal(`<h2>${escapeHtml(name)}</h2><pre style="max-height:60vh">${escapeHtml(r.content || "")}</pre><div class="actions"><button id="rm-close">关闭</button></div>`);
+    $("#rm-close").onclick = closeModal;
+  } catch (e) { closeModal(); toast(e.message, "error"); }
+}
+
+async function openSync() {
+  showModal(`<h2>🩺 体检与同步报告</h2><pre>正在体检…</pre>`);
+  try {
+    const [plan, health] = await Promise.all([api("/api/sync/plan"), api("/api/health")]);
+    const issues = health.issues || [];
+    const actions = plan.actions || [];
+
+    const rows = issues.map(iss => `
+      <div class="sync-item">
+        <span class="badge tier${iss.tier}">Tier ${iss.tier}</span>
+        <span class="sync-kind">${escapeHtml(iss.title)}</span>
+        <span style="color:var(--ink)">${escapeHtml(iss.skill || iss.path || "")}</span>
+        <div style="color:var(--ink-2); font-size:11px; margin-top:2px">${escapeHtml(iss.reason)} → <i>${escapeHtml(iss.recommendation)}</i></div>
+      </div>
+    `).join("");
+
+    showModal(`
+      <h2>🩺 体检与同步报告</h2>
+      <p style="font-size:12px;color:var(--ink-2);margin:4px 0 10px">
+        体检发现 <b>${issues.length}</b> 项规则建议。执行前请核对操作范围；可回滚的操作会写入备份记录。
+      </p>
+      <div style="max-height:46vh;overflow:auto;border:1px solid var(--border);border-radius:8px;padding:6px">
+        ${rows || '<div class="sync-item">✅ 全部体检通过，状态健康！</div>'}
+      </div>
+      <div class="actions">
+        <button id="sync-close">关闭</button>
+        ${actions.some(a => a.kind === "fix-broken-link") ? '<button id="sync-clean-broken">移除损坏链接</button>' : ""}
+        ${actions.some(a => a.kind === "link") ? '<button id="sync-apply" class="primary">补全缺失链接</button>' : ""}
+      </div>`);
+    $("#sync-close").onclick = closeModal;
+    const runSync = async (button, kind, successLabel) => {
+      button.disabled = true; button.textContent = "执行中…";
+      try {
+        const r = await api("/api/sync/apply", {
+          method: "POST",
+          body: JSON.stringify({ kinds: [kind] }),
+        });
+        toast(`${successLabel}：成功 ${r.succeeded} 项`, "ok");
+        closeModal();
+        await load();
+      } catch (e) {
+        const d = e.data || {};
+        const detail = (d.results || []).filter(x => !x.ok).map(x => x.error).filter(Boolean).join("；");
+        toast(`${successLabel}失败：${detail || e.message}`, "error");
+        button.disabled = false;
+        button.textContent = kind === "link" ? "补全缺失链接" : "移除损坏链接";
+      }
+    };
+    const applyBtn = $("#sync-apply");
+    if (applyBtn) applyBtn.onclick = () => runSync(applyBtn, "link", "补全链接");
+    const cleanBtn = $("#sync-clean-broken");
+    if (cleanBtn) cleanBtn.onclick = () => runSync(cleanBtn, "fix-broken-link", "清理损坏链接");
+  } catch (e) { closeModal(); toast(e.message, "error"); }
+}
+
+function openUninstall(name) {
+  const s = registry.skills[name];
+  const real = s.type === "local" || s.type === "git";
+  showModal(`
+    <h2>卸载 ${escapeHtml(name)}</h2>
+    <p style="font-size:12.5px;color:var(--ink-2);margin:6px 0">
+      将移除各 Agent 的启用软链。<br>
+      ${real ? "实体文件计划移入<b>回收站</b>（~/.agents/_trash/），不直接删除；移动成功后可从回收站恢复。" : "移除软链后可重新启用。"}
+    </p>
+    <div class="actions">
+      <button id="un-cancel">取消</button>
+      <button id="un-go" class="primary" style="background:linear-gradient(180deg,#c94444,#a83232)">确认卸载</button>
+    </div>
+  `);
+  $("#un-cancel").onclick = closeModal;
+  $("#un-go").onclick = async () => {
+    $("#un-go").disabled = true; $("#un-go").textContent = "卸载中…";
+    try {
+      await api(`/api/skill/${encodeURIComponent(name)}`, { method: "DELETE" });
+      toast(`已卸载 ${name}（可在回收站恢复）`, "ok");
+      closeModal();
+      await load();
+    } catch (e) {
+      toast(e.message, "error");
+      $("#un-go").disabled = false;
+    }
+  };
+}
+
+async function openTrash() {
+  showModal(`<h2>🗑 回收站</h2><pre>加载中…</pre>`);
+  try {
+    const r = await api("/api/trash");
+    const rows = (r.items || []).map(it => `
+      <div class="row" style="display:flex;align-items:center;gap:10px;padding:7px 8px;font-size:12.5px">
+        <span class="dot" style="background:var(--s3)"></span>
+        <span style="flex:1">${escapeHtml(it.name)}</span>
+        <span class="commit-mini">${it.mtime ? it.mtime.slice(0,16).replace("T"," ") : ""}</span>
+        <button class="action-btn" data-restore="${escapeHtml(it.entry)}">↩︎ 恢复</button>
+      </div>`).join("");
+    showModal(`
+      <h2>🗑 回收站</h2>
+      <p style="font-size:12px;color:var(--ink-2);margin:4px 0 10px">卸载的 Skill 均安全保存在此，恢复后将自动重新纳入 SSOT。</p>
+      <div style="max-height:50vh;overflow:auto;border:1px solid var(--border);border-radius:8px">
+        ${rows || '<div class="empty" style="padding:12px">回收站是空的</div>'}
+      </div>
+      <div class="actions"><button id="tr-close">关闭</button></div>
+    `);
+    $("#tr-close").onclick = closeModal;
+    $$("[data-restore]").forEach(btn => btn.onclick = async () => {
+      btn.disabled = true; btn.textContent = "恢复中…";
+      try {
+        await api("/api/trash/restore", { method: "POST", body: JSON.stringify({ entry: btn.dataset.restore }) });
+        toast("已恢复 Skill", "ok");
+        closeModal();
+        await load();
+      } catch (e) { toast(e.message, "error"); btn.disabled = false; }
+    });
+  } catch (e) { closeModal(); toast(e.message, "error"); }
+}
+
+function openAddSkill() {
+  showModal(`
+    <h2>添加 Skill</h2>
+    <label>Git URL</label>
+    <input type="url" id="git-url" placeholder="https://github.com/owner/repository">
+    <p style="font-size:12px;color:var(--ink-2);line-height:1.6;margin:8px 0">仅支持公开 GitHub HTTPS 仓库。SkillHub 会检查结构、大小和超时，但不会证明 Skill 或其中脚本安全；安装前请先阅读源码并确认来源可信。</p>
+    <label>本地名称 (可选)</label>
+    <input type="text" id="local-name" placeholder="默认使用仓库名">
+    <div class="actions"><button id="add-cancel">取消</button><button id="add-go" class="primary">克隆添加</button></div>
+  `);
+  $("#add-cancel").onclick = closeModal;
+  $("#add-go").onclick = async () => {
+    const url = $("#git-url").value.trim();
+    const name = $("#local-name").value.trim() || undefined;
+    if (!url) { toast("请输入 Git URL", "error"); return; }
+    if (!confirm("确认已阅读该仓库内容，并信任它的 Skill 与脚本？")) return;
+    $("#add-go").disabled = true; $("#add-go").textContent = "克隆中…";
+    try {
+      const r = await api("/api/add", { method: "POST", body: JSON.stringify({ gitUrl: url, name }) });
+      toast(`已成功添加 ${r.name}`, "ok");
+      closeModal();
+      await load();
+    } catch (e) {
+      toast(e.message, "error");
+      $("#add-go").disabled = false;
+    }
+  };
+}
+
+function showModal(html) { $("#modal-content").innerHTML = html; $("#modal-bg").classList.add("show"); }
+function closeModal() { $("#modal-bg").classList.remove("show"); }
+$("#modal-bg").onclick = e => { if (e.target.id === "modal-bg") closeModal(); };
+
+/* ================= 顶部按钮 ================= */
+$("#btn-add").onclick = openAddSkill;
+$("#btn-trash").onclick = openTrash;
+$("#btn-sync").onclick = openSync;
+$("#btn-undo").onclick = async () => {
+  if (!confirm("确定撤销最近一次写操作吗？")) return;
+  try {
+    const r = await api("/api/undo", { method: "POST" });
+    if (r.ok) {
+      toast(`✓ 成功撤销备份会话: ${r.sessionId}`, "ok");
+      await load();
+    } else {
+      toast(r.error || "未找到可撤销的备份记录", "error");
+    }
+  } catch (e) {
+    toast(`撤销失败: ${e.message}`, "error");
+  }
+};
+$("#btn-refresh").onclick = async () => {
+  toast("重新扫描中…");
+  try {
+    await api("/api/refresh", { method: "POST" });
+    healthCache = null;
+    await load();
+    toast("已刷新全部数据", "ok");
+  } catch (e) {
+    toast(`扫描失败: ${e.message}`, "error");
+  }
+};
+$("#btn-update-all").onclick = async () => {
+  if (!confirm("确定对所有 Git 管理的 Skill 执行 git pull 吗？")) return;
+  toast("更新全部中…");
+  try {
+    const r = await api("/api/update-all", { method: "POST" });
+    toast(`批量更新完成：成功 ${r.succeeded} 项`, "ok");
+    await load();
+  } catch (e) {
+    const d = e.data || {};
+    const failed = (d.results || []).filter(x => !x.ok).map(x => `${x.bundle || x.name}: ${x.error}`).join("；");
+    toast(`批量更新未全部成功：${failed || e.message}`, "error");
+    try { await load(); } catch {}
+  }
+};
+$("#search").oninput = renderTable;
+$("#agent-filter").onchange = renderTable;
+
+async function checkAppUpdate() {
+  try {
+    const res = await api("/api/self-update");
+    if (res && res.currentVersion) {
+      $("#app-ver").textContent = `v${res.currentVersion}`;
+    }
+    if (res && res.hasUpdate) {
+      const badge = $("#self-update-badge");
+      badge.style.display = "inline-block";
+      badge.innerHTML = `<button class="badge tierB" style="cursor:pointer;border-radius:4px;padding:2px 8px;font-size:10px" onclick="openSelfUpdateModal()">⚡ 发现新版本 v${escapeHtml(res.latestVersion)}</button>`;
+      window._updateInfo = res;
+    }
+  } catch {}
+}
+
+function openSelfUpdateModal() {
+  const u = window._updateInfo || {};
+  showModal(`
+    <h2>⚡ SkillHub 发现新版本</h2>
+    <p style="font-size:12.5px;color:var(--ink-2);margin:8px 0">
+      当前版本: <b>v${escapeHtml(u.currentVersion || "0.2.0")}</b> → 最新版本: <b style="color:var(--warn)">v${escapeHtml(u.latestVersion || "")}</b>
+    </p>
+    ${u.releaseNotes ? `<label>更新内容：</label><pre style="max-height:120px">${escapeHtml(u.releaseNotes)}</pre>` : ""}
+    <label>如何更新到最新版本：</label>
+    <pre>cd /path/to/skillhub\ngit pull --ff-only\nnpm ci\nnpm test</pre>
+    <div class="actions">
+      <button onclick="closeModal()">稍后提醒</button>
+      ${u.releaseUrl ? `<a href="${escapeHtml(sanitizeUrl(u.releaseUrl))}" target="_blank" rel="noopener noreferrer" class="action-btn primary" style="text-decoration:none;display:inline-flex;align-items:center;padding:6px 12px">查看 GitHub 发布页</a>` : ""}
+    </div>
+  `);
+}
+
+load().catch((e) => {
+  const message = `SkillHub 初始加载失败：${e.message}`;
+  $("#tiles").innerHTML = `<div class="tile alert" style="grid-column:1/-1"><div class="k">无法读取本地数据</div><div class="s">${escapeHtml(message)}。请刷新页面或查看启动终端。</div></div>`;
+  $("#tbl-body").innerHTML = `<tr><td colspan="99" class="empty">${escapeHtml(message)}</td></tr>`;
+  toast(message, "error");
+});
+checkAppUpdate();
+</script>
+</body>
+</html>
