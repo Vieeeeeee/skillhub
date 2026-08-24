@@ -22,10 +22,13 @@ function makeHome(t) {
 }
 
 test("static web UI is served from the package directory, independent of cwd", async (t) => {
-  const home = makeHome(t);
   const previousCwd = process.cwd();
+  const home = mkdtempSync(join(tmpdir(), "skillhub-server-test-"));
   process.chdir(home);
-  t.after(() => process.chdir(previousCwd));
+  t.after(() => {
+    process.chdir(previousCwd);
+    rmSync(home, { recursive: true, force: true, maxRetries: 3, retryDelay: 50 });
+  });
 
   const response = await createApp(home).request("http://127.0.0.1:7777/");
   assert.equal(response.status, 200);

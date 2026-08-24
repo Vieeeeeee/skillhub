@@ -10,7 +10,7 @@
   },
   "scripts": {
     "start": "node server/server.mjs",
-    "test": "node --test test/*.test.mjs",
+    "test": "node --test",
     "pack:check": "npm pack --dry-run"
   },
   "engines": {
