@@ -219,14 +219,18 @@ check-update       检查 SkillHub 是否有新版本
 
 ## 常见问题
 
-| 现象 | 先检查什么 |
+| 现象 | 原因和解法 |
 |---|---|
-| 面板没打开 | 执行 `./bin/skillhub open --no-open` 查看终端，再访问 `http://127.0.0.1:7777`。端口占用可加 `--port 7788`。 |
-| 看不到某个 Skill | 执行 `./bin/skillhub scan --json`，确认唯一真身根目录存在 `SKILL.md`。 |
-| 链接状态不对 | 先运行不带写参数的 `./bin/skillhub sync`，逐项核对计划。 |
-| Undo 失败 | 阅读每条日志。失败 manifest 会保留，也不会覆盖同位置后来出现的新文件。 |
-| Git 更新失败 | 用 Git 处理本地改动、认证、remote 或非快进历史；SkillHub 固定使用 `--ff-only`。 |
-| 热榜或版本查询失败 | 可能是断网或 GitHub 限流，不影响核心本地清单。 |
+| `skillhub: command not found` | 没装或不在 PATH 上。装一次，再用 `skillhub --version` 确认。 |
+| 提示 `SkillHub is already running` | 不是错误。面板本来就开着，它会把那个页面带到前台。想再起一个用 `--port 7788`。 |
+| 面板打不开 | 跑 `skillhub open --no-open` 看终端报错，再访问 `http://127.0.0.1:7777`。 |
+| 某个 Skill 没出现 | 跑 `skillhub scan --json`，确认它的目录里有根级 `SKILL.md`。 |
+| 改了分类或中文介绍但列表没变 | 面板缓存了清单，点「重新扫描」，或跑一次 `skillhub scan`。 |
+| Skill 在 agent 里触发不了 | agent 是会话启动时加载技能列表的，开一个新会话。 |
+| 链接看起来不对 | 跑不带写参数的 `skillhub sync`，逐条看计划再决定。 |
+| Undo 报失败 | 逐条读返回的日志。失败的 manifest 会保留可重试，且不会覆盖后来出现的新路径。 |
+| Git 更新失败 | 本地改动、认证、远端或非快进历史的问题，直接用 Git 解决。SkillHub 有意只用 `--ff-only`。 |
+| 热榜或版本检查失败 | GitHub 离线或触发限流。本地清单功能不受影响。 |
 
 ## 开发与验证
 

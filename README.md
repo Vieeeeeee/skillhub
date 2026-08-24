@@ -106,7 +106,7 @@ Update the npm CLI with `npm install --global @wsiwsii/skillhub@latest`. Update 
 | Link management | Creates or removes Agent links without replacing a real directory. |
 | Agents in use | An Agent you do not use is hidden from the dashboard and left out of sync planning. Hiding never deletes existing links, and an Agent whose directory does not exist is hidden by default. |
 | Sync planning | Shows the full plan first. `sync --apply` creates missing links only; `--fix-broken` removes broken links only. |
-| Health checks | Flags missing frontmatter, broken links, hardcoded home paths, oversized files, and likely secret patterns, across canonical Skills and Skill directories that still sit inside an Agent folder. Read-only. Each finding says whether you can act on it: results inside upstream-managed Skills are informational, since an upgrade overwrites local edits (`doctor --all` lists those too). These checks are heuristic. |
+| Health checks | Flags missing frontmatter, broken links, hardcoded home paths, likely secret patterns and oversized files, across canonical Skills and Skill directories that still sit inside an Agent folder. Read-only. The default report lists only findings that carry a decision — nobody rewrites a Skill they use daily because a rule called its description long — so long descriptions, large files and scan-coverage notes become background. Findings inside upstream-managed Skills are informational, since an upgrade overwrites local edits. `doctor --all` lists everything. These checks are heuristic. |
 | Git updates | Fast-forwards an individual Git-managed Skill or each unique bundle once. Partial failures remain visible. |
 | Uninstall and restore | Moves real Skill directories to `~/.agents/_trash/`; link-only entries are unlinked. |
 | Local dashboard | Provides the same inventory and explicit actions through a token-protected loopback API. |
@@ -200,7 +200,7 @@ check-update       Check whether a newer SkillHub release exists
 --json             Print machine-readable output where supported
 --apply            With sync: create missing links only
 --fix-broken       With sync: remove broken links only
---all              With doctor: also list findings in upstream-managed Skills
+--all              With doctor: also list background notes and upstream-managed findings
 --port <number>    Dashboard port (default 7777)
 --no-open          Start without launching a browser
 ```
@@ -221,9 +221,13 @@ check-update       Check whether a newer SkillHub release exists
 
 | Symptom | Check |
 |---|---|
-| Dashboard does not open | Run `./bin/skillhub open --no-open`, read the terminal error, then visit `http://127.0.0.1:7777`. Use `--port 7788` if the port is busy. |
-| A Skill is missing | Run `./bin/skillhub scan --json`; confirm a root `SKILL.md` exists under the canonical directory. |
-| Links look wrong | Run `./bin/skillhub sync` without write flags and review every planned action. |
+| `skillhub: command not found` | The CLI is not installed or not on PATH. Install it, then confirm with `skillhub --version`. |
+| `SkillHub is already running` | Not an error. The dashboard was open and that page is being brought forward. Use `--port 7788` to run a second one. |
+| Dashboard does not open | Run `skillhub open --no-open`, read the terminal error, then visit `http://127.0.0.1:7777`. |
+| A Skill is missing | Run `skillhub scan --json`; confirm a root `SKILL.md` exists under the canonical directory. |
+| An edited category or blurb does not show | The dashboard is holding a cached inventory. Press Rescan, or run `skillhub scan`. |
+| The Skill does not trigger in an agent | Agents load their Skill list at session start. Open a new session. |
+| Links look wrong | Run `skillhub sync` with no write flags and review every planned action. |
 | Undo reports a failure | Read each returned log. SkillHub keeps a failed manifest retryable and will not overwrite a newer replacement path. |
 | Git update fails | Resolve local changes, authentication, remote, or non-fast-forward history directly with Git. SkillHub intentionally uses `--ff-only`. |
 | Hot list or version check fails | GitHub may be offline or rate-limited. Core local inventory continues to work. |
