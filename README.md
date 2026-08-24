@@ -60,6 +60,7 @@ npm test
 | Inventory | Lists Skills, sources, categories, Agent visibility, and structural metadata. |
 | Health checks | Flags missing frontmatter, broken links, hardcoded home paths, oversized files, and likely secret patterns. Covers both canonical Skills and real Skill directories that still live inside an Agent folder, so a first run reports something useful before anything is linked or moved. Inspection is read-only. Findings are tagged by whether you can act on them: results inside upstream-managed Skills are informational, since an upgrade overwrites local edits, and `doctor --all` lists those too. These checks are heuristic. |
 | Link management | Creates or removes Agent links without replacing a real directory. |
+| Agents in use | An Agent you do not use is hidden from the dashboard and left out of sync planning. Hiding never deletes existing links, and an Agent whose directory does not exist is hidden by default. |
 | Sync planning | Shows all findings first. `sync --apply` creates missing links only; `--fix-broken` removes broken links only. |
 | Git updates | Fast-forwards an individual Git-managed Skill or each unique bundle once. Partial failures remain visible. |
 | Uninstall and restore | Moves real Skill directories to `~/.agents/_trash/`; link-only entries are unlinked. |
@@ -141,6 +142,7 @@ link <name> <ag>   Enable a Skill for a link-based Agent
 unlink <name> <ag> Disable a Skill for a link-based Agent
 update <name>      Fast-forward one Git-managed Skill or bundle
 backups            List backup manifests
+agents [k on|off]  List agents in use, or turn one on or off
 pending            List skills missing a Chinese blurb or a category
 describe <n> <text>  Write a skill's Chinese blurb
 categorize <n> <cat> Set a skill's category

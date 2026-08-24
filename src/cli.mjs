@@ -1,12 +1,12 @@
 #!/usr/bin/env node
 import { readFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
-import { getPaths, getAgentDirs } from "./core/paths.mjs";
-import { buildRegistry } from "./core/registry.mjs";
+import { getPaths, getAgentDirs, isAgentVisible } from "./core/paths.mjs";
+import { buildRegistry, loadUserOverrides } from "./core/registry.mjs";
 import { buildSyncPlan, applySyncPlan } from "./core/sync.mjs";
 import { runDoctor } from "./core/doctor/index.mjs";
 import { undoLastBackup, listBackups } from "./core/backup.mjs";
-import { toggleAgent, removeSkill, updateSkill, setMetadataOverride } from "./core/ops.mjs";
+import { toggleAgent, removeSkill, updateSkill, setMetadataOverride, setAgentVisibility } from "./core/ops.mjs";
 import { checkSelfUpdate } from "./core/update-check.mjs";
 import { startServer, PORT, HOST } from "../server/server.mjs";
 
@@ -31,6 +31,7 @@ Commands:
   unlink <name> <ag> Disable a skill for an agent
   update <name>      Pull latest git commits for a skill
   backups            List recent backup sessions
+  agents [k on|off]  List agents in use, or turn one on or off
   pending            List skills still missing a Chinese blurb or a category
   describe <n> <text>  Write the Chinese blurb for a skill
   categorize <n> <cat> Set the category for a skill
@@ -236,6 +237,42 @@ async function main() {
       for (const b of backups) {
         const undone = b.manifest.undoneAt ? " (Undone)" : "";
         console.log(`  • ${b.id} - ${b.manifest.action} [${b.manifest.operations.length} ops]${undone}`);
+      }
+      console.log("");
+      break;
+    }
+
+    case "agents": {
+      const key = args[1];
+      const state = args[2];
+      if (key && state) {
+        if (state !== "on" && state !== "off") {
+          console.error("Usage: skillhub agents <agentKey> on|off");
+          process.exit(1);
+        }
+        setAgentVisibility(key, state === "on");
+        buildRegistry();
+        console.log(`✓ ${key} ${state === "on" ? "已启用" : "已隐藏"}`);
+        break;
+      }
+      const overrides = loadUserOverrides(paths.OVERRIDES_FILE);
+      const rows = Object.entries(getAgentDirs()).map(([k, cfg]) => ({
+        key: k,
+        name: cfg.name || k,
+        type: cfg.type,
+        path: cfg.absPath,
+        available: Boolean(cfg.available),
+        visible: isAgentVisible(cfg, k, overrides),
+      }));
+      if (jsonMode) {
+        console.log(JSON.stringify(rows, null, 2));
+        return;
+      }
+      console.log("");
+      for (const r of rows) {
+        const mark = r.visible ? "✓ 使用中" : "· 已隐藏";
+        const note = r.available ? "" : "（目录不存在）";
+        console.log(`  ${mark}  ${r.key.padEnd(10)} ${(r.name || "").padEnd(24)} ${note}`);
       }
       console.log("");
       break;

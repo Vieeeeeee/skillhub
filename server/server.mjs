@@ -6,8 +6,8 @@ import { readFileSync, existsSync, statSync, readdirSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { getPaths, getAgentDirs } from "../src/core/paths.mjs";
-import { buildRegistry } from "../src/core/registry.mjs";
+import { getPaths, getAgentDirs, isAgentVisible } from "../src/core/paths.mjs";
+import { buildRegistry, loadUserOverrides } from "../src/core/registry.mjs";
 import { buildSyncPlan, applySyncPlan } from "../src/core/sync.mjs";
 import { runDoctor } from "../src/core/doctor/index.mjs";
 import { undoLastBackup } from "../src/core/backup.mjs";
@@ -47,12 +47,15 @@ export function createApp(customHome = null) {
   });
 
   function withAgentMetadata(registry) {
+    const overrides = loadUserOverrides(getPaths(customHome).OVERRIDES_FILE);
     const agentMeta = Object.fromEntries(
       Object.entries(getAgentDirs(customHome)).map(([key, cfg]) => [key, {
         name: cfg.name || key,
         type: cfg.type || "symlink",
         path: cfg.absPath,
         status: cfg.status || "",
+        available: Boolean(cfg.available),
+        visible: isAgentVisible(cfg, key, overrides),
       }])
     );
     return { ...registry, agentMeta };
@@ -104,6 +107,17 @@ export function createApp(customHome = null) {
       return c.json({ ok: true, skillsCount: Object.keys(reg.skills || {}).length });
     } catch (e) {
       return c.json({ ok: false, error: e.message }, 500);
+    }
+  });
+
+  app.post("/api/agents/visibility", async (c) => {
+    const { agent, visible } = await c.req.json();
+    try {
+      const result = ops.setAgentVisibility(agent, visible, customHome);
+      buildRegistry(customHome);
+      return c.json({ ok: true, ...result });
+    } catch (e) {
+      return c.json({ ok: false, error: e.message }, 400);
     }
   });
 

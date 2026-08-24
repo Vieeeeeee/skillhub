@@ -252,6 +252,7 @@ tbody td { padding: 8px 6px; vertical-align: top; }
   <button id="btn-sync">🩺 体检/同步</button>
   <button id="btn-undo">↩︎ 撤销 (Undo)</button>
   <button id="btn-update-all">⟳ 更新全部</button>
+  <button id="btn-agents">⚙ Agent</button>
   <button id="btn-refresh">↻ 重新扫描</button>
 </header>
 
@@ -401,8 +402,14 @@ function hasIssue(s) {
   return s.nameMismatch || !s.hasSkillMd || s.hasName === false || s.hasDescription === false;
 }
 
-function configuredAgents() {
+function allAgents() {
   return Object.entries(registry?.agentMeta || {}).map(([key, meta]) => ({ key, ...meta }));
+}
+
+// Only the Agents the user actually uses. The rest stay out of the dashboard
+// instead of sitting there forever showing "not linked".
+function configuredAgents() {
+  return allAgents().filter(a => a.visible !== false);
 }
 
 function shortAgentName(agent) {
@@ -848,6 +855,50 @@ async function openReadme(name) {
   } catch (e) { closeModal(); toast(e.message, "error"); }
 }
 
+async function openAgentSettings() {
+  const agents = allAgents();
+  const rows = agents.map(a => {
+    const on = a.visible !== false;
+    const note = a.type === "native"
+      ? "原生扫描，无需软链"
+      : (a.available ? "" : "该目录在这台电脑上不存在");
+    return `
+      <div class="sync-item" style="display:flex;align-items:center;gap:10px">
+        <input type="checkbox" data-agent="${escapeHtml(a.key)}" ${on ? "checked" : ""} style="width:16px;height:16px">
+        <span style="color:var(--ink);min-width:150px">${escapeHtml(a.name || a.key)}</span>
+        <span class="dim" style="font-size:11px">${escapeHtml(note)}</span>
+      </div>`;
+  }).join("");
+
+  showModal(`
+    <h2>⚙ 使用哪些 Agent</h2>
+    <p style="font-size:12px;color:var(--ink-2);margin:4px 0 10px">
+      取消勾选的 Agent 不再出现在看板和同步计划里。已经建好的软链不会被删除，重新勾选就恢复原样。
+    </p>
+    <div style="max-height:46vh;overflow:auto;border:1px solid var(--border);border-radius:8px;padding:6px">${rows}</div>
+    <div class="actions"><button id="ag-close">关闭</button></div>`);
+
+  $("#ag-close").onclick = closeModal;
+  for (const box of document.querySelectorAll('#modal-content input[data-agent]')) {
+    box.onchange = async () => {
+      const agent = box.dataset.agent;
+      box.disabled = true;
+      try {
+        await api("/api/agents/visibility", {
+          method: "POST",
+          body: JSON.stringify({ agent, visible: box.checked }),
+        });
+        toast(`${agent}：${box.checked ? "已启用" : "已隐藏"}`, "ok");
+        await load();
+      } catch (e) {
+        box.checked = !box.checked;
+        toast(`设置失败：${e.message}`, "error");
+      }
+      box.disabled = false;
+    };
+  }
+}
+
 async function openSync() {
   showModal(`<h2>🩺 体检与同步报告</h2><pre>正在体检…</pre>`);
   try {
@@ -1014,6 +1065,7 @@ $("#modal-bg").onclick = e => { if (e.target.id === "modal-bg") closeModal(); };
 $("#btn-add").onclick = openAddSkill;
 $("#btn-trash").onclick = openTrash;
 $("#btn-sync").onclick = openSync;
+$("#btn-agents").onclick = openAgentSettings;
 $("#btn-undo").onclick = async () => {
   if (!confirm("确定撤销最近一次写操作吗？")) return;
   try {

@@ -60,6 +60,7 @@ npm test
 | 统一清单 | 展示 Skill、来源、分类、Agent 可见状态和结构信息。 |
 | 健康体检 | 查找 frontmatter 缺失、坏链接、个人绝对路径、文件过大和疑似密钥特征。统一管理的 Skill 和仍然留在各 Agent 目录里的 Skill 都会被检查，所以第一次运行、还没建任何链接之前就能看到有价值的结果。体检全程只读。每条结果会标明你能不能处理：来自随上游更新的 Skill 的结果只作参考，因为本地改动会被下次升级覆盖，`doctor --all` 可以把它们一并列出。扫描属于启发式检查。 |
 | Agent 启用 | 为需要链接的 Agent 创建或移除链接，不会把真实目录当链接删除。 |
+| 在用的 Agent | 没在用的 Agent 可以隐藏，不再出现在看板和同步计划里。隐藏不会删除已有链接，目录不存在的 Agent 默认就不显示。 |
 | 同步计划 | 先展示全部发现；`sync --apply` 只补缺失链接，`--fix-broken` 只移除损坏链接。 |
 | Git 更新 | 对单个 Git Skill 或每个唯一 bundle 执行快进更新，部分失败会逐项显示。 |
 | 卸载与恢复 | 真实 Skill 移到 `~/.agents/_trash/`，链接型 Skill 只移除链接。 |
@@ -141,6 +142,7 @@ link <name> <ag>   为链接型 Agent 启用 Skill
 unlink <name> <ag> 为链接型 Agent 禁用 Skill
 update <name>      快进更新一个 Git Skill 或 bundle
 backups            列出备份 manifest
+agents [名字 on|off]  查看在用哪些 Agent，或开关某一个
 pending            列出还缺中文介绍或还没归类的 Skill
 describe <名字> <文本>  写入 Skill 的中文介绍
 categorize <名字> <分类> 设置 Skill 的分类

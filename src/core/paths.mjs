@@ -64,6 +64,7 @@ export function getAgentDirs(customHome = null) {
     result[key] = {
       ...cfg,
       absPath,
+      available: existsSync(absPath),
       secondaryAbsPath:
         typeof cfg.secondaryPath === "string"
           ? isAbsolute(cfg.secondaryPath)
@@ -78,6 +79,7 @@ export function getAgentDirs(customHome = null) {
     result.claude = {
       name: "Claude Code",
       absPath: join(home, ".claude", "skills"),
+      available: existsSync(join(home, ".claude", "skills")),
       relPrefix: "../../.agents/skills/",
       triggerPrefix: "/",
       type: "symlink",
@@ -88,6 +90,7 @@ export function getAgentDirs(customHome = null) {
     result.gemini = {
       name: "Gemini CLI",
       absPath: join(home, ".gemini", "config", "skills"),
+      available: existsSync(join(home, ".gemini", "config", "skills")),
       relPrefix: "../../../.agents/skills/",
       triggerPrefix: "/",
       type: "symlink",
@@ -98,6 +101,7 @@ export function getAgentDirs(customHome = null) {
     result.hermes = {
       name: "Hermes Agent",
       absPath: join(home, ".hermes", "skills", "claude-skills"),
+      available: existsSync(join(home, ".hermes", "skills", "claude-skills")),
       relPrefix: "../../../.agents/skills/",
       triggerPrefix: "/",
       type: "symlink",
@@ -108,6 +112,7 @@ export function getAgentDirs(customHome = null) {
     result.codex = {
       name: "OpenAI Codex",
       absPath: join(home, ".agents", "skills"),
+      available: existsSync(join(home, ".agents", "skills")),
       secondaryPath: join(home, ".codex", "skills"),
       secondaryAbsPath: join(home, ".codex", "skills"),
       type: "native",
@@ -117,4 +122,18 @@ export function getAgentDirs(customHome = null) {
   }
 
   return result;
+}
+
+/**
+ * Whether an Agent should be shown and kept in sync. The user's explicit choice
+ * wins; with no choice, an Agent whose directory does not exist on this machine
+ * stays out of the way instead of sitting there permanently "not linked".
+ *
+ * Hiding an Agent only affects display and sync planning. Links that already
+ * exist are left untouched, so unhiding restores the previous state.
+ */
+export function isAgentVisible(cfg, key, overrides) {
+  const choice = overrides?.agentVisibility?.[key];
+  if (typeof choice === "boolean") return choice;
+  return Boolean(cfg?.available);
 }

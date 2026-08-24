@@ -117,6 +117,25 @@ export function toggleAgent(skillName, agentKey, enabled, customHome = null) {
   return { ok: true, skill: skillName, agent: agentKey, enabled, sessionId: session.manifest.sessionId };
 }
 
+/**
+ * Record whether an Agent is in use. This only changes what SkillHub shows and
+ * what it proposes to sync; existing links are never removed, so turning an
+ * Agent back on restores exactly what was there before.
+ */
+export function setAgentVisibility(agentKey, visible, customHome = null) {
+  const paths = getPaths(customHome);
+  const agentDirs = getAgentDirs(customHome);
+  if (!agentDirs[agentKey]) throw new Error(`Unknown agent: "${agentKey}"`);
+  assertManagedHomePath(paths.OVERRIDES_FILE, paths, false);
+
+  const overrides = loadUserOverrides(paths.OVERRIDES_FILE);
+  const session = createBackupSession(paths.BACKUPS_DIR, `agent-visibility-${agentKey}`);
+  overrides.agentVisibility ||= {};
+  overrides.agentVisibility[agentKey] = Boolean(visible);
+  saveOverridesWithBackup(session, paths.OVERRIDES_FILE, overrides);
+  return { ok: true, agent: agentKey, visible: Boolean(visible), sessionId: session.id };
+}
+
 export function setMetadataOverride(skillName, { zh, notes, category }, customHome = null) {
   assertSafeName(skillName, "skill name");
   const paths = getPaths(customHome);

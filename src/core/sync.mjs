@@ -7,7 +7,7 @@ import {
   statSync,
 } from "node:fs";
 import { join, resolve } from "node:path";
-import { getPaths, getAgentDirs } from "./paths.mjs";
+import { getPaths, getAgentDirs, isAgentVisible } from "./paths.mjs";
 import { isSymlink, isBrokenLink, readLinkSafe, createLink, unlinkSafe } from "./link.mjs";
 import { createBackupSession, recordOperation } from "./backup.mjs";
 import { loadUserOverrides } from "./registry.mjs";
@@ -111,6 +111,9 @@ export function buildSyncPlan(customHome = null, { allowHarvest = false } = {}) 
   // 2. Check each link-based agent (Claude, Gemini, Hermes)
   for (const [agKey, agCfg] of Object.entries(agentDirs)) {
     if (agCfg.type !== "symlink") continue;
+    // An Agent the user does not use is left alone entirely: no link proposals
+    // and no reports about what sits in its directory.
+    if (!isAgentVisible(agCfg, agKey, overrides)) continue;
     const agPath = agCfg.absPath;
     const disabledList = new Set(agentDisabled[agKey] || []);
     const entries = listDirectoryEntries(agPath);

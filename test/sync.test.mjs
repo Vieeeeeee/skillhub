@@ -11,6 +11,7 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { setAgentVisibility } from "../src/core/ops.mjs";
 import { buildSyncPlan, applySyncPlan, resolvesInto } from "../src/core/sync.mjs";
 import { isSymlink } from "../src/core/link.mjs";
 import { undoLastBackup } from "../src/core/backup.mjs";
@@ -159,4 +160,38 @@ test("resolvesInto uses path boundaries instead of slash or prefix assumptions",
 
   assert.equal(resolvesInto(insideLink, root), true);
   assert.equal(resolvesInto(siblingLink, root), false);
+});
+
+test("hiding an Agent stops planning for it and keeps its existing links", (t) => {
+  const tmp = mkdtempSync(join(tmpdir(), "skillhub-agent-visibility-"));
+  t.after(() => rmSync(tmp, { recursive: true, force: true }));
+
+  const ssot = join(tmp, ".agents", "skills", "alpha");
+  mkdirSync(ssot, { recursive: true });
+  writeFileSync(join(ssot, "SKILL.md"), "---\nname: alpha\ndescription: demo\n---\n");
+
+  const cursorDir = join(tmp, ".cursor", "skills");
+  mkdirSync(cursorDir, { recursive: true });
+  symlinkSync(join(tmp, ".agents", "skills", "alpha"), join(cursorDir, "alpha"), "dir");
+
+  // A second Skill with no link yet, so the plan has something to say about it.
+  const beta = join(tmp, ".agents", "skills", "beta");
+  mkdirSync(beta, { recursive: true });
+  writeFileSync(join(beta, "SKILL.md"), "---\nname: beta\ndescription: demo\n---\n");
+
+  const before = buildSyncPlan(tmp);
+  assert.ok(before.some((a) => a.kind === "link" && a.agent === "cursor" && a.skill === "beta"),
+    "a visible agent takes part in planning");
+
+  setAgentVisibility("cursor", false, tmp);
+
+  const after = buildSyncPlan(tmp);
+  assert.equal(after.some((a) => a.agent === "cursor"), false,
+    "a hidden agent is left out of the plan entirely");
+
+  // The point of hiding is display, not deletion.
+  assert.ok(existsSync(join(cursorDir, "alpha")), "an existing link survives hiding");
+
+  setAgentVisibility("cursor", true, tmp);
+  assert.ok(existsSync(join(cursorDir, "alpha")), "and survives being shown again");
 });
