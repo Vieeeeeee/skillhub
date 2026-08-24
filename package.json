@@ -1,17 +1,20 @@
 {
-  "name": "skillhub",
+  "name": "@vieeeeeee/skillhub",
   "version": "0.2.0",
-  "private": true,
   "description": "Local-first, portable manager and health doctor for AI Agent Skills",
   "type": "module",
   "bin": {
-    "skillhub": "./bin/skillhub",
-    "skill-hub": "./bin/skillhub"
+    "skillhub": "bin/skillhub",
+    "skill-hub": "bin/skillhub"
   },
   "scripts": {
     "start": "node server/server.mjs",
     "test": "node --test",
-    "pack:check": "npm pack --dry-run"
+    "pack:check": "npm pack --dry-run",
+    "prepublishOnly": "npm test && npm audit --omit=dev --audit-level=high && npm run pack:check"
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "engines": {
     "node": ">=20"
@@ -32,6 +35,7 @@
     "src/",
     "web/",
     "LICENSE",
+    "CHANGELOG.md",
     "README.md",
     "README.zh-CN.md",
     "SECURITY.md"

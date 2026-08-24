@@ -3,18 +3,34 @@
 把散落在不同 AI Agent 目录里的 Skills，集中到本地一处管理、体检和启用。
 
 [![CI](https://github.com/Vieeeeeee/skillhub/actions/workflows/ci.yml/badge.svg)](https://github.com/Vieeeeeee/skillhub/actions/workflows/ci.yml)
+[![npm version](https://img.shields.io/npm/v/@vieeeeeee/skillhub.svg)](https://www.npmjs.com/package/@vieeeeeee/skillhub)
 [![Node.js 20+](https://img.shields.io/badge/Node.js-20%2B-339933?logo=node.js&logoColor=white)](package.json)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
 [English](./README.md)
 
-> **当前状态：预发布，只通过 GitHub 提供。** 下方源码安装路径已在 macOS 本机验证，并完成本地打包安装后的跨目录启动测试。当前提交也已通过 Linux、macOS、Windows × Node.js 20/22 的 GitHub Actions 检查。本项目不会发布到 npm registry；这里的 `npm` 只负责安装 Node.js 依赖和运行仓库检查。
+> **当前状态：预发布。** 打包后的 CLI 已在 macOS 本机验证，并完成全局安装后的面板启动测试。当前提交也已通过 Linux、macOS、Windows × Node.js 20/22 的 GitHub Actions 检查。执行写命令前，请先阅读下方权限和第三方 Skill 风险说明。
 
 SkillHub 把 `~/.agents/skills` 作为 Skill 唯一真身，显示每个 Agent 能否读取、检查常见结构问题，并且只执行用户明确点下或输入的写操作。Web 面板只允许绑定本机回环地址。
 
 ## 30 秒上手
 
-需要先安装 Git 和 Node.js 20 或更新版本。
+npm 安装需要 Node.js 20 或更新版本；运行源码还需要 Git。
+
+推荐从 npm 安装公开 CLI：
+
+```bash
+npm install --global @vieeeeeee/skillhub
+
+# 先体检和查看，不改 Skill 内容
+skillhub doctor
+skillhub scan
+
+# 打开本地面板：http://127.0.0.1:7777
+skillhub open
+```
+
+希望直接运行源码时，GitHub 安装方式仍然完整保留：
 
 ```bash
 git clone https://github.com/Vieeeeeee/skillhub.git
@@ -29,7 +45,7 @@ npm ci
 ./bin/skillhub open
 ```
 
-以后更新源码：
+更新 npm CLI：`npm install --global @vieeeeeee/skillhub@latest`。更新源码：
 
 ```bash
 git pull --ff-only
@@ -165,7 +181,7 @@ npm audit --omit=dev --audit-level=high
 npm run pack:check
 ```
 
-`npm run pack:check` 只检查 GitHub 源码安装产物需要包含哪些文件，不会发布到 npm。测试、CI 配置和内部计划不会进入该产物。行为改动请补回归测试，路径、同源校验和回滚护栏不得弱化。
+`npm run pack:check` 会预览 npm 包的准确内容，不会发布。测试、CI 配置和内部计划不会进入 npm 包。执行 `npm publish` 时，`prepublishOnly` 还会自动运行测试、生产依赖审计和包内容检查。行为改动请补回归测试，路径、同源校验和回滚护栏不得弱化。
 
 ## 私密报告安全问题
 

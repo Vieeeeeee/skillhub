@@ -3,18 +3,34 @@
 Manage, inspect, and connect AI Agent Skills from one local source of truth.
 
 [![CI](https://github.com/Vieeeeeee/skillhub/actions/workflows/ci.yml/badge.svg)](https://github.com/Vieeeeeee/skillhub/actions/workflows/ci.yml)
+[![npm version](https://img.shields.io/npm/v/@vieeeeeee/skillhub.svg)](https://www.npmjs.com/package/@vieeeeeee/skillhub)
 [![Node.js 20+](https://img.shields.io/badge/Node.js-20%2B-339933?logo=node.js&logoColor=white)](package.json)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
 [中文说明](./README.zh-CN.md)
 
-> **Project status: pre-release and GitHub-only.** The source install below has been verified locally on macOS, including a packaged-install smoke test from a local checkout. The current commit also passes the GitHub Actions matrix on Linux, macOS, and Windows with Node.js 20 and 22. This project is not published to the npm registry; `npm` is used only to install Node.js dependencies and run repository checks.
+> **Project status: pre-release.** The packaged CLI has been verified locally on macOS, including a global-install/dashboard smoke test. The current commit also passes the GitHub Actions matrix on Linux, macOS, and Windows with Node.js 20 and 22. Review the permission and third-party Skill sections before using write commands.
 
 SkillHub keeps canonical Skills under `~/.agents/skills`, shows which Agents can see them, checks common structural problems, and creates only the links you explicitly request. The web dashboard stays on your computer and refuses non-loopback bind addresses.
 
 ## Quick start
 
-Requirements: Git and Node.js 20 or newer.
+The npm install requires Node.js 20 or newer. Running from source also requires Git.
+
+Install the public CLI from npm:
+
+```bash
+npm install --global @vieeeeeee/skillhub
+
+# Inspect without changing Skill contents
+skillhub doctor
+skillhub scan
+
+# Open the local dashboard at http://127.0.0.1:7777
+skillhub open
+```
+
+Prefer running from source? Git remains fully supported:
 
 ```bash
 git clone https://github.com/Vieeeeeee/skillhub.git
@@ -29,7 +45,7 @@ npm ci
 ./bin/skillhub open
 ```
 
-Update a source checkout with:
+Update the npm CLI with `npm install --global @vieeeeeee/skillhub@latest`. Update a source checkout with:
 
 ```bash
 git pull --ff-only
@@ -165,7 +181,7 @@ npm audit --omit=dev --audit-level=high
 npm run pack:check
 ```
 
-`npm run pack:check` validates the files needed by a GitHub checkout/install artifact; it is not a publishing step. Tests, CI configuration, and planning notes are excluded from that artifact. Pull requests should include a regression test for behavior changes and must not weaken path, origin, or rollback checks.
+`npm run pack:check` previews the exact npm package contents without publishing. Tests, CI configuration, and planning notes are excluded from the package. `npm publish` also runs the test suite, production dependency audit, and package-content check through `prepublishOnly`. Pull requests should include a regression test for behavior changes and must not weaken path, origin, or rollback checks.
 
 ## Security reports
 
