@@ -11,7 +11,7 @@
 
 > **当前状态：预发布。** 打包后的 CLI 已在 macOS 本机验证，并完成全局安装后的面板启动测试。当前提交也已通过 Linux、macOS、Windows × Node.js 20/22 的 GitHub Actions 检查。执行写命令前，请先阅读下方权限和第三方 Skill 风险说明。
 
-SkillHub 把 `~/.agents/skills` 作为 Skill 唯一真身，显示每个 Agent 能否读取、检查常见结构问题，并且只执行用户明确点下或输入的写操作。Web 面板只允许绑定本机回环地址。
+SkillHub 盘点这台电脑上的全部 Skill，显示每个 Agent 能读到哪些，帮你补中文介绍和分类，并且只执行你明确点下或输入的写操作。唯一真身放在 `~/.agents/skills`。Web 面板只允许绑定本机回环地址。
 
 ## 30 秒上手
 
@@ -58,10 +58,11 @@ npm test
 | 能力 | 实际结果 |
 |---|---|
 | 统一清单 | 展示 Skill、来源、分类、Agent 可见状态和结构信息。 |
-| 健康体检 | 查找 frontmatter 缺失、坏链接、个人绝对路径、文件过大和疑似密钥特征。统一管理的 Skill 和仍然留在各 Agent 目录里的 Skill 都会被检查，所以第一次运行、还没建任何链接之前就能看到有价值的结果。体检全程只读。每条结果会标明你能不能处理：来自随上游更新的 Skill 的结果只作参考，因为本地改动会被下次升级覆盖，`doctor --all` 可以把它们一并列出。扫描属于启发式检查。 |
+| 中文介绍与分类 | 规则先把大头粗分一遍；`pending` 列出还没补的，`describe` 和 `categorize` 把剩下的写回去。两者只写 SkillHub 自己的配置，不碰 Skill 内容。 |
 | Agent 启用 | 为需要链接的 Agent 创建或移除链接，不会把真实目录当链接删除。 |
 | 在用的 Agent | 没在用的 Agent 可以隐藏，不再出现在看板和同步计划里。隐藏不会删除已有链接，目录不存在的 Agent 默认就不显示。 |
-| 同步计划 | 先展示全部发现；`sync --apply` 只补缺失链接，`--fix-broken` 只移除损坏链接。 |
+| 同步计划 | 先展示完整计划；`sync --apply` 只补缺失链接，`--fix-broken` 只移除损坏链接。 |
+| 健康体检 | 查找 frontmatter 缺失、坏链接、个人绝对路径、文件过大和疑似密钥特征，统一管理的 Skill 和仍留在各 Agent 目录里的 Skill 都会检查。全程只读。每条结果标明你能不能处理：来自随上游更新的 Skill 的结果只作参考，因为本地改动会被下次升级覆盖（`doctor --all` 可一并列出）。扫描属于启发式检查。 |
 | Git 更新 | 对单个 Git Skill 或每个唯一 bundle 执行快进更新，部分失败会逐项显示。 |
 | 卸载与恢复 | 真实 Skill 移到 `~/.agents/_trash/`，链接型 Skill 只移除链接。 |
 | 本地面板 | 通过带会话令牌的本机 API，提供清单和明确的单项操作。 |
@@ -94,6 +95,8 @@ Agent 路径来自 [`rules/agents.json`](./rules/agents.json)。Codex 当前配�
 | `scan`、`list`、`doctor` | Skill 与 Agent 目录 | `~/.skillhub/` 下的缓存和状态 | 不改 Skill 内容。 |
 | `open` | 同一批本地数据 | 会话令牌、清单与缓存 | 面板里的写入仍需明确点击按钮。 |
 | `link`、`unlink` | 唯一真身和 Agent 路径 | Agent 链接、本地选择与 manifest | 有记录的链接操作可尝试 Undo。 |
+| `describe`、`categorize` | 唯一真身中的 Skill 条目 | `~/.skillhub/overrides.json` 里的中文介绍与分类 | 有记录，Undo 可回滚。不碰 Skill 内容。 |
+| `agents <名字> on\|off` | Agent 配置 | `~/.skillhub/overrides.json` 里的 Agent 可见性 | 有记录。已有链接一律不删，重新启用即恢复原样。 |
 | `sync --apply` | 现场重新生成的同步计划 | 只补全缺失链接 | 有记录的链接操作可尝试 Undo。 |
 | `sync --fix-broken` | 现场重新生成的同步计划 | 只移除损坏链接 | 有记录的链接操作可尝试 Undo。 |
 | `update` / “更新全部” | 已有 Git 仓库 | 执行 `git pull --ff-only` | SkillHub Undo 不负责恢复，请使用 Git 或常规备份。 |
@@ -131,25 +134,27 @@ SkillHub 不包含遥测。以下动作会主动联网：
 ## 命令速查
 
 ```text
-skillhub [command] [options]
+skillhub [命令] [参数]
 
 open, start        启动本地面板
 scan, list         生成并输出本地清单
-doctor             执行 Tier A/B/C 体检规则
-sync               查看当前同步计划
-undo               重试回滚最新一份符合条件的备份 manifest
-link <name> <ag>   为链接型 Agent 启用 Skill
-unlink <name> <ag> 为链接型 Agent 禁用 Skill
-update <name>      快进更新一个 Git Skill 或 bundle
-backups            列出备份 manifest
-agents [名字 on|off]  查看在用哪些 Agent，或开关某一个
 pending            列出还缺中文介绍或还没归类的 Skill
-describe <名字> <文本>  写入 Skill 的中文介绍
+describe <名字> <文本>   写入 Skill 的中文介绍
 categorize <名字> <分类> 设置 Skill 的分类
+agents [名字 on|off]     查看在用哪些 Agent，或开关某一个
+sync               查看当前同步计划
+link <名字> <agent>   为链接型 Agent 启用 Skill
+unlink <名字> <agent> 为链接型 Agent 禁用 Skill
+update <名字>      快进更新一个 Git Skill 或 bundle
+doctor             执行 Tier A/B/C 体检规则
+undo               重试回滚最新一份符合条件的备份 manifest
+backups            列出备份 manifest
+check-update       检查 SkillHub 是否有新版本
 
 --json             在支持的命令中输出 JSON
 --apply            配合 sync：只补全缺失链接
 --fix-broken       配合 sync：只移除损坏链接
+--all              配合 doctor：把随上游更新的 Skill 的结果也列出来
 --port <number>    面板端口，默认 7777
 --no-open          启动后不自动打开浏览器
 ```

@@ -11,7 +11,7 @@ Manage, inspect, and connect AI Agent Skills from one local source of truth.
 
 > **Project status: pre-release.** The packaged CLI has been verified locally on macOS, including a global-install/dashboard smoke test. The current commit also passes the GitHub Actions matrix on Linux, macOS, and Windows with Node.js 20 and 22. Review the permission and third-party Skill sections before using write commands.
 
-SkillHub keeps canonical Skills under `~/.agents/skills`, shows which Agents can see them, checks common structural problems, and creates only the links you explicitly request. The web dashboard stays on your computer and refuses non-loopback bind addresses.
+SkillHub inventories the Skills on your machine, shows which Agents can see each one, helps you label and categorise them, and creates only the links you explicitly request. Canonical Skills live under `~/.agents/skills`. The web dashboard stays on your computer and refuses non-loopback bind addresses.
 
 ## Quick start
 
@@ -58,10 +58,11 @@ npm test
 | Capability | Result |
 |---|---|
 | Inventory | Lists Skills, sources, categories, Agent visibility, and structural metadata. |
-| Health checks | Flags missing frontmatter, broken links, hardcoded home paths, oversized files, and likely secret patterns. Covers both canonical Skills and real Skill directories that still live inside an Agent folder, so a first run reports something useful before anything is linked or moved. Inspection is read-only. Findings are tagged by whether you can act on them: results inside upstream-managed Skills are informational, since an upgrade overwrites local edits, and `doctor --all` lists those too. These checks are heuristic. |
+| Labels and categories | Rules give every Skill a first-pass category. `pending` lists what is still unlabelled; `describe` and `categorize` write the rest. Both touch only SkillHub's own config, never Skill contents. |
 | Link management | Creates or removes Agent links without replacing a real directory. |
 | Agents in use | An Agent you do not use is hidden from the dashboard and left out of sync planning. Hiding never deletes existing links, and an Agent whose directory does not exist is hidden by default. |
-| Sync planning | Shows all findings first. `sync --apply` creates missing links only; `--fix-broken` removes broken links only. |
+| Sync planning | Shows the full plan first. `sync --apply` creates missing links only; `--fix-broken` removes broken links only. |
+| Health checks | Flags missing frontmatter, broken links, hardcoded home paths, oversized files, and likely secret patterns, across canonical Skills and Skill directories that still sit inside an Agent folder. Read-only. Each finding says whether you can act on it: results inside upstream-managed Skills are informational, since an upgrade overwrites local edits (`doctor --all` lists those too). These checks are heuristic. |
 | Git updates | Fast-forwards an individual Git-managed Skill or each unique bundle once. Partial failures remain visible. |
 | Uninstall and restore | Moves real Skill directories to `~/.agents/_trash/`; link-only entries are unlinked. |
 | Local dashboard | Provides the same inventory and explicit actions through a token-protected loopback API. |
@@ -94,6 +95,8 @@ Review this table before using write commands:
 | `scan`, `list`, `doctor` | Skill and Agent directories | Cache/state under `~/.skillhub/` | Does not modify Skill contents. |
 | `open` | Same local data | Session token, registry, and caches under `~/.skillhub/` | Web writes still require an explicit button action. |
 | `link`, `unlink` | Canonical Skill and Agent path | Agent link plus local override/manifest state | Recorded link operations can be attempted with `undo`. |
+| `describe`, `categorize` | Canonical Skill entry | Labels in `~/.skillhub/overrides.json` | Recorded, so `undo` reverts them. Skill contents are untouched. |
+| `agents <key> on\|off` | Agent configuration | Agent visibility in `~/.skillhub/overrides.json` | Recorded. Existing links are never removed, so turning an Agent back on restores what was there. |
 | `sync --apply` | Fresh server-side sync plan | Missing links only | Recorded link operations can be attempted with `undo`. |
 | `sync --fix-broken` | Fresh server-side sync plan | Removes broken links only | Recorded link operations can be attempted with `undo`. |
 | `update` / “update all” | Existing Git repositories | Runs `git pull --ff-only` | Not reverted by SkillHub Undo; use Git or your backup. |
@@ -135,21 +138,23 @@ skillhub [command] [options]
 
 open, start        Start the local dashboard
 scan, list         Build and print the local inventory
-doctor             Run Tier A/B/C inspection rules
+pending            List Skills missing a Chinese blurb or a category
+describe <name> <text>   Write a Skill's Chinese blurb
+categorize <name> <cat>  Set a Skill's category
+agents [key on|off]      List Agents in use, or turn one on or off
 sync               Show the current sync plan
-undo               Retry reversal of the latest eligible backup manifest
 link <name> <ag>   Enable a Skill for a link-based Agent
 unlink <name> <ag> Disable a Skill for a link-based Agent
 update <name>      Fast-forward one Git-managed Skill or bundle
+doctor             Run Tier A/B/C inspection rules
+undo               Retry reversal of the latest eligible backup manifest
 backups            List backup manifests
-agents [k on|off]  List agents in use, or turn one on or off
-pending            List skills missing a Chinese blurb or a category
-describe <n> <text>  Write a skill's Chinese blurb
-categorize <n> <cat> Set a skill's category
+check-update       Check whether a newer SkillHub release exists
 
 --json             Print machine-readable output where supported
 --apply            With sync: create missing links only
 --fix-broken       With sync: remove broken links only
+--all              With doctor: also list findings in upstream-managed Skills
 --port <number>    Dashboard port (default 7777)
 --no-open          Start without launching a browser
 ```
