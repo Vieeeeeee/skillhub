@@ -127,8 +127,14 @@ export function buildSyncPlan(customHome = null, { allowHarvest = false } = {}) 
           });
         }
       } else if (entry.isDirectory) {
-        // Real directory in agent folder
-        if (managedSkills.has(entry.name) || agentSpecific.has(entry.name)) {
+        // Real directory in agent folder. A name the SSOT already knows about is
+        // maintained by whatever put it there (gstack keeps its own copies this
+        // way), so it is not an unmanaged orphan.
+        if (
+          ssotNames.has(entry.name) ||
+          managedSkills.has(entry.name) ||
+          agentSpecific.has(entry.name)
+        ) {
           continue;
         }
         const hasSkillMd = existsSync(join(entry.path, "SKILL.md"));

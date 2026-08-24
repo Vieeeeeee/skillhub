@@ -58,7 +58,7 @@ npm test
 | Capability | Result |
 |---|---|
 | Inventory | Lists Skills, sources, categories, Agent visibility, and structural metadata. |
-| Health checks | Flags missing frontmatter, broken links, hardcoded home paths, oversized files, and likely secret patterns. These checks are heuristic. |
+| Health checks | Flags missing frontmatter, broken links, hardcoded home paths, oversized files, and likely secret patterns. Covers both canonical Skills and real Skill directories that still live inside an Agent folder, so a first run reports something useful before anything is linked or moved. Inspection is read-only. Findings are tagged by whether you can act on them: results inside upstream-managed Skills are informational, since an upgrade overwrites local edits, and `doctor --all` lists those too. These checks are heuristic. |
 | Link management | Creates or removes Agent links without replacing a real directory. |
 | Sync planning | Shows all findings first. `sync --apply` creates missing links only; `--fix-broken` removes broken links only. |
 | Git updates | Fast-forwards an individual Git-managed Skill or each unique bundle once. Partial failures remain visible. |

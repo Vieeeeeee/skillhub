@@ -37,12 +37,28 @@ Options:
   --fix-broken       Remove broken symlinks only (cannot be combined with --apply)
   --port <number>    Specify server port (default: 7777)
   --no-open          Do not automatically open browser
+  --all              With doctor: also list findings in upstream-managed skills
 `);
+}
+
+// 未知参数一律报错。静默忽略会让用户以为动作生效了，实际什么都没发生。
+const KNOWN_OPTIONS = new Set([
+  "--json", "--apply", "--fix-broken", "--port", "--no-open", "--all", "--help", "-h",
+]);
+
+function assertKnownOptions() {
+  const unknown = args.filter((a) => a.startsWith("-") && !KNOWN_OPTIONS.has(a));
+  if (unknown.length) {
+    console.error(`Unknown option(s): ${unknown.join(", ")}`);
+    printUsage();
+    process.exit(1);
+  }
 }
 
 async function main() {
   const jsonMode = args.includes("--json");
   const paths = getPaths();
+  assertKnownOptions();
 
   switch (command) {
     case "help":
@@ -96,19 +112,33 @@ async function main() {
         return;
       }
 
-      console.log(`\n🩺 SkillHub Health Doctor Report`);
-      console.log(`Found ${issues.length} item(s):\n`);
+      // Findings in Skills that track an upstream source are informational: a
+      // local edit there is overwritten on the next update. They stay out of
+      // the default report and out of its headline count.
+      const showAll = args.includes("--all");
+      const upstream = issues.filter((i) => !i.owned);
+      const shown = showAll ? issues : issues.filter((i) => i.owned);
 
-      if (issues.length === 0) {
+      console.log(`\n🩺 SkillHub Health Doctor Report`);
+      console.log(`Found ${shown.length} item(s):\n`);
+
+      if (shown.length === 0) {
         console.log(`✅ No issues found by the current inspection rules.\n`);
+        if (upstream.length && !showAll) {
+          console.log(`ℹ ${upstream.length} more in Skills managed upstream. Run with --all to see them.\n`);
+        }
         return;
       }
 
-      for (const iss of issues) {
+      for (const iss of shown) {
         const tierColor = iss.tier === "A" ? "\x1b[31m" : iss.tier === "B" ? "\x1b[33m" : "\x1b[34m";
-        console.log(`${tierColor}[Tier ${iss.tier}]\x1b[0m \x1b[1m${iss.title}\x1b[0m: ${iss.skill || iss.path}`);
+        const where = iss.location ? ` \x1b[2m(${iss.location})\x1b[0m` : "";
+        console.log(`${tierColor}[Tier ${iss.tier}]\x1b[0m \x1b[1m${iss.title}\x1b[0m: ${iss.skill || iss.path}${where}`);
         console.log(`  Reason: ${iss.reason}`);
         console.log(`  Action: ${iss.recommendation}\n`);
+      }
+      if (upstream.length && !showAll) {
+        console.log(`ℹ ${upstream.length} more in Skills managed upstream (an upgrade overwrites local edits). Run with --all to see them.\n`);
       }
       break;
     }
