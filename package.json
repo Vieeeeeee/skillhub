@@ -1,11 +1,10 @@
 {
   "name": "@wsiwsii/skillhub",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Local-first, portable manager and health doctor for AI Agent Skills",
   "type": "module",
   "bin": {
-    "skillhub": "bin/skillhub",
-    "skill-hub": "bin/skillhub"
+    "skillhub": "bin/skillhub"
   },
   "scripts": {
     "start": "node server/server.mjs",

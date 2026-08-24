@@ -15,45 +15,89 @@ SkillHub inventories the Skills on your machine, shows which Agents can see each
 
 ## Quick start
 
-The npm install requires Node.js 20 or newer. Running from source also requires Git.
+Requires Node.js 20 or newer.
 
-Install the public CLI from npm:
+**1. Install it**
 
 ```bash
 npm install --global @wsiwsii/skillhub
-
-# Inspect without changing Skill contents
-skillhub doctor
-skillhub scan
-
-# Open the local dashboard at http://127.0.0.1:7777
-skillhub open
 ```
 
-Prefer running from source? Git remains fully supported:
+**2. Register it as a Skill.** This is the step that lets you talk to it from your agent, and it is easy to miss.
+
+```bash
+mkdir -p ~/.agents/skills ~/.claude/skills
+ln -s "$(skillhub skill-path)" ~/.agents/skills/skillhub
+ln -s ../../.agents/skills/skillhub ~/.claude/skills/skillhub
+```
+
+`skillhub skill-path` prints where the package actually is, so this does not depend on guessing an npm directory.
+
+Codex reads `~/.agents/skills` natively, so the first link covers it. The second is for Claude Code. For Gemini, Cursor or Hermes, run `skillhub sync` and apply the plan it prints. To uninstall later, delete those two links; nothing else is touched.
+
+On Windows, run the equivalent from PowerShell, using the printed path:
+
+```powershell
+New-Item -ItemType Directory -Force "$env:USERPROFILE\.agents\skills", "$env:USERPROFILE\.claude\skills"
+New-Item -ItemType Junction -Path "$env:USERPROFILE\.agents\skills\skillhub" -Target (skillhub skill-path)
+New-Item -ItemType Junction -Path "$env:USERPROFILE\.claude\skills\skillhub" -Target "$env:USERPROFILE\.agents\skills\skillhub"
+```
+
+**3. Open a new agent session and ask.**
+
+| Agent | Trigger |
+|---|---|
+| Claude Code | `/skillhub`, or just say what you want |
+| Codex | `$skillhub` |
+| Gemini, Cursor, Hermes | `/skillhub` once linked |
+
+A session that is already running will not see a newly installed Skill, so start a fresh one.
+
+## What you can ask it to do
+
+| Say this | It does this |
+|---|---|
+| Show me what I have installed | Lists every Skill, where it came from, its category, and which agents can read it |
+| My skills are a mess | Reports the current state, then asks where you want to start |
+| Write descriptions for these | Finds Skills with no local blurb and writes one for each |
+| Sort the uncategorised ones | Groups whatever the rules could not place |
+| I never use Cursor | Drops Cursor from the dashboard and from sync plans; existing links stay where they are |
+| Share these with Codex | Shows the link plan first, applies it once you agree |
+| Open the dashboard | Starts the local page at `http://127.0.0.1:7777` |
+| Check my skills for problems | Looks for breakage, leaked keys and stale paths |
+| Undo that | Rolls back the last write |
+
+None of this edits the contents of a Skill. Writes are limited to links and to SkillHub's own config, and each one can be undone.
+
+## Without an agent
+
+The dashboard and the CLI work on their own:
+
+```bash
+skillhub open      # local dashboard
+skillhub scan      # what is installed
+skillhub pending   # what still needs a description or a category
+skillhub doctor    # health report
+```
+
+## Running from source
 
 ```bash
 git clone https://github.com/Vieeeeeee/skillhub.git
 cd skillhub
 npm ci
-
-# Inspect without changing Skill contents
-./bin/skillhub doctor
-./bin/skillhub scan
-
-# Open the local dashboard at http://127.0.0.1:7777
 ./bin/skillhub open
 ```
 
-Update the npm CLI with `npm install --global @wsiwsii/skillhub@latest`. Update a source checkout with:
+Register the source checkout as a Skill by linking its `skill/` directory instead:
 
 ```bash
-git pull --ff-only
-npm ci
-npm test
+ln -s "$PWD/skill" ~/.agents/skills/skillhub
 ```
 
-## What it does
+Update the npm CLI with `npm install --global @wsiwsii/skillhub@latest`. Update a checkout with `git pull --ff-only && npm ci && npm test`.
+
+## Capabilities in detail
 
 | Capability | Result |
 |---|---|
@@ -149,6 +193,8 @@ update <name>      Fast-forward one Git-managed Skill or bundle
 doctor             Run Tier A/B/C inspection rules
 undo               Retry reversal of the latest eligible backup manifest
 backups            List backup manifests
+skill-path         Print this package's skill/ directory
+version            Print the installed version
 check-update       Check whether a newer SkillHub release exists
 
 --json             Print machine-readable output where supported

@@ -365,22 +365,41 @@ export function startServer({ port = PORT, host = HOST, customHome = null, autoO
   // Bootstrapping registry scan
   buildRegistry(customHome);
 
-  return serve({ fetch: app.fetch, port, hostname: bindHost }, (info) => {
-    const displayHost = bindHost === "::1" ? "[::1]" : bindHost;
-    const url = `http://${displayHost}:${info.port}`;
-    console.log(`\n🎨 SkillHub running at ${url}`);
-    console.log("   Bound to this computer only.\n");
+  const displayHost = bindHost === "::1" ? "[::1]" : bindHost;
+  const url = `http://${displayHost}:${port}`;
 
-    if (autoOpen && !process.env.SKILL_HUB_NO_OPEN) {
-      if (process.platform === "darwin") {
-        spawnSync("open", [url]);
-      } else if (process.platform === "win32") {
-        spawnSync("cmd", ["/c", "start", url]);
-      } else {
-        spawnSync("xdg-open", [url]);
-      }
+  const openBrowser = () => {
+    if (!autoOpen || process.env.SKILL_HUB_NO_OPEN) return;
+    if (process.platform === "darwin") {
+      spawnSync("open", [url]);
+    } else if (process.platform === "win32") {
+      spawnSync("cmd", ["/c", "start", "", url]);
+    } else {
+      spawnSync("xdg-open", [url]);
     }
+  };
+
+  const server = serve({ fetch: app.fetch, port, hostname: bindHost }, (info) => {
+    console.log(`\n🎨 SkillHub running at http://${displayHost}:${info.port}`);
+    console.log("   Bound to this computer only.\n");
+    openBrowser();
   });
+
+  // The usual reason this port is taken is that SkillHub is already running,
+  // which is not an error worth a stack trace: open the page that is there.
+  server.on("error", (err) => {
+    if (err && err.code === "EADDRINUSE") {
+      console.log(`\n🎨 SkillHub is already running at ${url}`);
+      console.log("   Opening that page instead. Use --port to start a second one.\n");
+      openBrowser();
+      process.exitCode = 0;
+      return;
+    }
+    console.error(`\nCould not start SkillHub: ${err?.message || err}\n`);
+    process.exitCode = 1;
+  });
+
+  return server;
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {

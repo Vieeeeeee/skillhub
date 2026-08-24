@@ -13,47 +13,91 @@
 
 SkillHub 盘点这台电脑上的全部 Skill，显示每个 Agent 能读到哪些，帮你补中文介绍和分类，并且只执行你明确点下或输入的写操作。唯一真身放在 `~/.agents/skills`。Web 面板只允许绑定本机回环地址。
 
-## 30 秒上手
+## 怎么装、怎么用
 
-npm 安装需要 Node.js 20 或更新版本；运行源码还需要 Git。
+需要 Node.js 20 或更新版本。
 
-推荐从 npm 安装公开 CLI：
+**第一步，装上**
 
 ```bash
 npm install --global @wsiwsii/skillhub
-
-# 先体检和查看，不改 Skill 内容
-skillhub doctor
-skillhub scan
-
-# 打开本地面板：http://127.0.0.1:7777
-skillhub open
 ```
 
-希望直接运行源码时，GitHub 安装方式仍然完整保留：
+**第二步，把它注册成一个 Skill。** 这一步最容易漏，但正是它让你能在 agent 里直接开口使唤它。
+
+```bash
+mkdir -p ~/.agents/skills ~/.claude/skills
+ln -s "$(skillhub skill-path)" ~/.agents/skills/skillhub
+ln -s ../../.agents/skills/skillhub ~/.claude/skills/skillhub
+```
+
+`skillhub skill-path` 会把包的真实位置打印出来，所以不用去猜 npm 装到哪了。
+
+Codex 原生就读 `~/.agents/skills`，第一条链接它就够了；第二条是给 Claude Code 的。Gemini、Cursor、Hermes 跑一次 `skillhub sync`，照它列出的计划补上即可。以后不想要了，把这两条链接删掉就行，别的什么都不动。
+
+Windows 在 PowerShell 里用等价写法，路径同样由命令打印：
+
+```powershell
+New-Item -ItemType Directory -Force "$env:USERPROFILE\.agents\skills", "$env:USERPROFILE\.claude\skills"
+New-Item -ItemType Junction -Path "$env:USERPROFILE\.agents\skills\skillhub" -Target (skillhub skill-path)
+New-Item -ItemType Junction -Path "$env:USERPROFILE\.claude\skills\skillhub" -Target "$env:USERPROFILE\.agents\skills\skillhub"
+```
+
+**第三步，开一个新会话，直接说话**
+
+| Agent | 怎么触发 |
+|---|---|
+| Claude Code | `/skillhub`，或者直接说你想干什么 |
+| Codex | `$skillhub` |
+| Gemini / Cursor / Hermes | 链接建好后同样是 `/skillhub` |
+
+已经开着的会话看不到新装的 Skill，要重开一个。
+
+## 你可以让它做什么
+
+| 你说这句 | 它就去做 |
+|---|---|
+| 看看我装了哪些技能 | 列出全部 Skill、来源、分类，以及哪些 agent 能读到 |
+| 我的技能太乱了 | 先讲清楚现状，再问你想从哪儿开始收拾 |
+| 帮我补中文介绍 | 找出没有中文说明的，一个个补上 |
+| 把没分类的归归类 | 规则没归进去的那些，交给它按内容归 |
+| 我不用 Cursor | 把 Cursor 从看板和同步计划里去掉，已经建好的链接原样留着 |
+| 把这些同步给 Codex | 先把要建哪些链接列给你看，你点头才动手 |
+| 打开面板 | 起本地网页 `http://127.0.0.1:7777` |
+| 给我的技能做个体检 | 查坏损、密钥泄露、失效路径这类问题 |
+| 撤销刚才那步 | 回滚上一次写操作 |
+
+以上没有一项会改动 Skill 里的内容。会写的只有链接和 SkillHub 自己的配置，而且每一次都能撤销。
+
+## 不用 agent 也能用
+
+面板和命令行本身就能独立工作：
+
+```bash
+skillhub open      # 打开本地面板
+skillhub scan      # 看装了什么
+skillhub pending   # 看还有哪些缺中文介绍或没分类
+skillhub doctor    # 出一份体检报告
+```
+
+## 从源码运行
 
 ```bash
 git clone https://github.com/Vieeeeeee/skillhub.git
 cd skillhub
 npm ci
-
-# 先体检和查看，不改 Skill 内容
-./bin/skillhub doctor
-./bin/skillhub scan
-
-# 打开本地面板：http://127.0.0.1:7777
 ./bin/skillhub open
 ```
 
-更新 npm CLI：`npm install --global @wsiwsii/skillhub@latest`。更新源码：
+源码版注册成 Skill，把仓库里的 `skill/` 目录链过去：
 
 ```bash
-git pull --ff-only
-npm ci
-npm test
+ln -s "$PWD/skill" ~/.agents/skills/skillhub
 ```
 
-## 能做什么
+npm 版升级用 `npm install --global @wsiwsii/skillhub@latest`；源码版用 `git pull --ff-only && npm ci && npm test`。
+
+## 功能明细
 
 | 能力 | 实际结果 |
 |---|---|
@@ -149,6 +193,8 @@ update <名字>      快进更新一个 Git Skill 或 bundle
 doctor             执行 Tier A/B/C 体检规则
 undo               重试回滚最新一份符合条件的备份 manifest
 backups            列出备份 manifest
+skill-path         打印本包的 skill/ 目录位置
+version            打印当前版本号
 check-update       检查 SkillHub 是否有新版本
 
 --json             在支持的命令中输出 JSON

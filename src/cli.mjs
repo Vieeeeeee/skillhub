@@ -1,13 +1,13 @@
 #!/usr/bin/env node
 import { readFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
-import { getPaths, getAgentDirs, isAgentVisible } from "./core/paths.mjs";
+import { getPaths, getAgentDirs, isAgentVisible, ROOT_DIR } from "./core/paths.mjs";
 import { buildRegistry, loadUserOverrides } from "./core/registry.mjs";
 import { buildSyncPlan, applySyncPlan } from "./core/sync.mjs";
 import { runDoctor } from "./core/doctor/index.mjs";
 import { undoLastBackup, listBackups } from "./core/backup.mjs";
 import { toggleAgent, removeSkill, updateSkill, setMetadataOverride, setAgentVisibility } from "./core/ops.mjs";
-import { checkSelfUpdate } from "./core/update-check.mjs";
+import { checkSelfUpdate, getCurrentVersion } from "./core/update-check.mjs";
 import { startServer, PORT, HOST } from "../server/server.mjs";
 
 const args = process.argv.slice(2);
@@ -31,6 +31,7 @@ Commands:
   unlink <name> <ag> Disable a skill for an agent
   update <name>      Pull latest git commits for a skill
   backups            List recent backup sessions
+  skill-path         Print this package's skill/ directory
   agents [k on|off]  List agents in use, or turn one on or off
   pending            List skills still missing a Chinese blurb or a category
   describe <n> <text>  Write the Chinese blurb for a skill
@@ -48,7 +49,7 @@ Options:
 
 // 未知参数一律报错。静默忽略会让用户以为动作生效了，实际什么都没发生。
 const KNOWN_OPTIONS = new Set([
-  "--json", "--apply", "--fix-broken", "--port", "--no-open", "--all", "--help", "-h",
+  "--json", "--apply", "--fix-broken", "--port", "--no-open", "--all", "--help", "-h", "--version", "-v",
 ]);
 
 function assertKnownOptions() {
@@ -70,6 +71,13 @@ async function main() {
     case "--help":
     case "-h":
       printUsage();
+      break;
+
+    // A plain way to answer "is this installed?" before anything else runs.
+    case "version":
+    case "--version":
+    case "-v":
+      console.log(getCurrentVersion());
       break;
 
     case "open":
@@ -239,6 +247,13 @@ async function main() {
         console.log(`  • ${b.id} - ${b.manifest.action} [${b.manifest.operations.length} ops]${undone}`);
       }
       console.log("");
+      break;
+    }
+
+    case "skill-path": {
+      // Printed so the install instructions never have to guess where npm put
+      // the package. Works the same from a global install or a checkout.
+      console.log(join(ROOT_DIR, "skill"));
       break;
     }
 
