@@ -9,8 +9,6 @@ Manage, inspect, and connect AI Agent Skills from one local source of truth.
 
 [中文说明](./README.zh-CN.md)
 
-> **Project status: pre-release.** The packaged CLI has been verified locally on macOS, including a global-install/dashboard smoke test. The current commit also passes the GitHub Actions matrix on Linux, macOS, and Windows with Node.js 20 and 22. Review the permission and third-party Skill sections before using write commands.
-
 SkillHub inventories the Skills on your machine, shows which Agents can see each one, helps you label and categorise them, and creates only the links you explicitly request. Canonical Skills live under `~/.agents/skills`. The web dashboard stays on your computer and refuses non-loopback bind addresses.
 
 ## Quick start

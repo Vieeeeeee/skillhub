@@ -9,8 +9,6 @@
 
 [English](./README.md)
 
-> **当前状态：预发布。** 打包后的 CLI 已在 macOS 本机验证，并完成全局安装后的面板启动测试。当前提交也已通过 Linux、macOS、Windows × Node.js 20/22 的 GitHub Actions 检查。执行写命令前，请先阅读下方权限和第三方 Skill 风险说明。
-
 SkillHub 盘点这台电脑上的全部 Skill，显示每个 Agent 能读到哪些，帮你补中文介绍和分类，并且只执行你明确点下或输入的写操作。唯一真身放在 `~/.agents/skills`。Web 面板只允许绑定本机回环地址。
 
 ## 怎么装、怎么用
