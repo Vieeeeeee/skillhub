@@ -551,6 +551,11 @@ export function runDoctor(registry, customHome = null) {
   }
   for (const [trigger, names] of byTriggerName) {
     if (names.length < 2) continue;
+    // Two entries that resolve to the same directory are one Skill reached by
+    // two names. Nothing is fighting over the trigger, and the advice — rename
+    // one of them — would mean editing a file the upstream bundle owns.
+    const distinctBodies = new Set(names.map((n) => skills[n].realPath || skills[n].path));
+    if (distinctBodies.size < 2) continue;
     for (const name of names) {
       issues.push({
         id: "duplicate-trigger-name",

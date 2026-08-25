@@ -10,7 +10,7 @@ import {
   unlinkSync,
   rmdirSync,
 } from "node:fs";
-import { join, resolve, dirname, isAbsolute, relative, sep } from "node:path";
+import { join, resolve, dirname, basename, isAbsolute, relative, sep } from "node:path";
 import { randomUUID } from "node:crypto";
 import { execFileSync } from "node:child_process";
 import { getPaths, getAgentDirs, RULES_DIR, isAgentVisible } from "./paths.mjs";
@@ -362,8 +362,10 @@ export function buildRegistry(customHome = null) {
     // follow the link out; every write refuses to. Recording it here lets the
     // health report say so instead of leaving the user to hit a path guard.
     let outsideManagedHome = false;
+    let realPath = "";
     try {
-      outsideManagedHome = !isInsideRoot(realpathSync(entryPath), paths.HOME);
+      realPath = realpathSync(entryPath);
+      outsideManagedHome = !isInsideRoot(realPath, paths.HOME);
     } catch {}
 
     const meta = parseSkillMeta(entryPath);
@@ -409,7 +411,14 @@ export function buildRegistry(customHome = null) {
       }
     }
 
-    const hasNameMismatch = Boolean(fmName) && fmName !== name && acceptedAliases[name] !== fmName;
+    // A second name for one Skill is an alias, not a mismatch. Upstream bundles
+    // ship these deliberately — gstack links open-gstack-browser a second time
+    // as connect-chrome — and the real directory is named after the frontmatter
+    // exactly as it should be. Calling that broken sent the user to edit a file
+    // that gets overwritten on the next upstream update.
+    const isAliasLink = Boolean(realPath) && basename(realPath) === fmName;
+    const hasNameMismatch =
+      Boolean(fmName) && fmName !== name && acceptedAliases[name] !== fmName && !isAliasLink;
 
     skills[name] = {
       type: agentSpecific ? "agent-specific" : stype,
@@ -424,6 +433,8 @@ export function buildRegistry(customHome = null) {
       inferredSource: inferredSources[name] || "",
       localCanonical: localCanonical.has(name),
       outsideManagedHome,
+      realPath,
+      aliasOfSkill: isAliasLink ? fmName : "",
       // No hasUpdate / latestUpstream / lastChecked here: nothing ever queried
       // an upstream, so the dashboard spent six components reporting "all up to
       // date" from a field that was only ever copied forward as false. SkillHub

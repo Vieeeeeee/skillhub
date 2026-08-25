@@ -267,3 +267,30 @@ test("a SKILL.md too large to parse is reported as that, not as missing fields",
   assert.ok(!issues.some((i) => i.id === "missing-description"));
   assert.ok(!issues.some((i) => i.tier === "A"), "nothing here is a Tier A problem");
 });
+
+test("one Skill linked under two names is an alias, not a collision", (t) => {
+  const tmp = mkdtempSync(join(tmpdir(), "skillhub-alias-"));
+  t.after(() => rmSync(tmp, { recursive: true, force: true }));
+
+  const ssot = join(tmp, ".agents", "skills");
+  const real = join(ssot, "open-gstack-browser");
+  mkdirSync(real, { recursive: true });
+  writeFileSync(join(real, "SKILL.md"), "---\nname: open-gstack-browser\ndescription: launches a browser\n---\n");
+  // Upstream bundles ship these deliberately: a second, friendlier name for the
+  // same directory. Both entries carry the same frontmatter name because they
+  // are the same file.
+  symlinkSync(real, join(ssot, "connect-chrome"), "dir");
+
+  const issues = runDoctor(buildRegistry(tmp), tmp);
+  assert.equal(issues.filter((i) => i.id === "duplicate-trigger-name").length, 0,
+    "nothing is fighting over the trigger — it is one Skill");
+  assert.equal(issues.filter((i) => i.id === "name-mismatch").length, 0,
+    "the real directory is named exactly after its frontmatter");
+
+  // A genuine collision — two different Skills declaring one name — still counts.
+  const other = join(ssot, "my-own-browser");
+  mkdirSync(other, { recursive: true });
+  writeFileSync(join(other, "SKILL.md"), "---\nname: open-gstack-browser\ndescription: a different thing\n---\n");
+  const second = runDoctor(buildRegistry(tmp), tmp);
+  assert.ok(second.some((i) => i.id === "duplicate-trigger-name" && i.tier === "A"));
+});
