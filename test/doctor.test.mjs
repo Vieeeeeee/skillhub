@@ -185,3 +185,64 @@ test("real breakage is listed even inside an upstream-managed Skill", () => {
   assert.equal(isDefaultReportItem(upstreamNote), false);
   assert.equal(isDefaultReportItem(ownNote), false);
 });
+
+test("rules cover the three ways a Skill is installed but unusable", (t) => {
+  const tmp = mkdtempSync(join(tmpdir(), "skillhub-unusable-"));
+  t.after(() => rmSync(tmp, { recursive: true, force: true }));
+  const ssot = join(tmp, ".agents", "skills");
+
+  // 1. A directory name outside the naming shape still gets a trigger word.
+  const underscored = join(ssot, "my_diary");
+  mkdirSync(underscored, { recursive: true });
+  writeFileSync(join(underscored, "SKILL.md"), "---\nname: my_diary\ndescription: d\n---\n");
+
+  // 2. Two directories declaring the same frontmatter name fight over $name.
+  for (const dir of ["first", "second"]) {
+    const full = join(ssot, dir);
+    mkdirSync(full, { recursive: true });
+    writeFileSync(join(full, "SKILL.md"), "---\nname: shared-trigger\ndescription: d\n---\n");
+  }
+
+  // 3. SKILL.md pointing at a file that is not there sends the Agent nowhere.
+  const linky = join(ssot, "linky");
+  mkdirSync(join(linky, "references"), { recursive: true });
+  writeFileSync(join(linky, "references", "present.md"), "here\n");
+  writeFileSync(
+    join(linky, "SKILL.md"),
+    "---\nname: linky\ndescription: d\n---\n\n[a](references/present.md) [b](references/missing.md)\n"
+  );
+
+  const issues = runDoctor(buildRegistry(tmp), tmp);
+
+  const invalid = issues.filter((i) => i.id === "invalid-skill-name");
+  assert.deepEqual(invalid.map((i) => i.skill), ["my_diary"]);
+  assert.equal(invalid[0].tier, "A");
+
+  const collisions = issues.filter((i) => i.id === "duplicate-trigger-name");
+  assert.deepEqual(collisions.map((i) => i.skill).sort(), ["first", "second"]);
+  assert.ok(collisions.every((i) => i.tier === "A"));
+
+  const broken = issues.filter((i) => i.id === "broken-internal-link");
+  assert.deepEqual(broken.map((i) => i.skill), ["linky"]);
+  assert.match(broken[0].reason, /references\/missing\.md/);
+  assert.doesNotMatch(broken[0].reason, /present\.md/);
+});
+
+test("executable scripts are counted but kept out of the default list", (t) => {
+  const tmp = mkdtempSync(join(tmpdir(), "skillhub-scripts-"));
+  t.after(() => rmSync(tmp, { recursive: true, force: true }));
+
+  const skill = join(tmp, ".agents", "skills", "runner");
+  mkdirSync(join(skill, "scripts"), { recursive: true });
+  writeFileSync(join(skill, "SKILL.md"), "---\nname: runner\ndescription: d\n---\n");
+  writeFileSync(join(skill, "scripts", "setup.sh"), "#!/bin/sh\necho hi\n");
+  writeFileSync(join(skill, "scripts", "tool.py"), "print('hi')\n");
+  writeFileSync(join(skill, "notes.md"), "not a script\n");
+
+  const issues = runDoctor(buildRegistry(tmp), tmp);
+  const found = issues.find((i) => i.id === "contains-scripts");
+
+  assert.ok(found, "a Skill that can run code should say so");
+  assert.match(found.title, /2 个可执行脚本/);
+  assert.equal(isDefaultReportItem(found), false, "it is context, not a decision to make");
+});

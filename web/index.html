@@ -90,6 +90,8 @@ input:focus, textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 3px
 .tile .s { font-size: 11px; color: var(--ink-mute); margin-top: 3px; }
 .tile.alert .v { color: var(--warn); }
 .tile.ok .v { color: var(--good); }
+#tile-needzh, #tile-needcat { cursor: pointer; }
+#tile-needzh:hover, #tile-needcat:hover { border-color: var(--border-strong); }
 
 .panels { display: grid; grid-template-columns: 1.25fr 1fr; gap: 14px; margin-top: 14px; }
 @media (max-width: 980px) { .panels { grid-template-columns: 1fr; } }
@@ -231,6 +233,9 @@ tbody td { padding: 8px 6px; vertical-align: top; }
   box-shadow: 0 6px 24px rgba(0,0,0,.5);
 }
 .toast.error { border-color: var(--crit); color: #fca5a5; }
+#conn-lost { display:none; position:fixed; left:0; right:0; bottom:0; z-index:300;
+  background: var(--crit); color:#fff; font-size:12.5px; padding:9px 20px; text-align:center; }
+#conn-lost code { background: rgba(0,0,0,.25); padding:1px 5px; border-radius:3px; }
 .toast.ok { border-color: var(--good); color: #86efac; }
 .commit-mini { font-family: ui-monospace, Menlo, monospace; font-size: 10px; color: var(--ink-mute); }
 .origin-link { color: var(--ink-2); font-size: 10px; text-decoration: none; }
@@ -295,7 +300,7 @@ tbody td { padding: 8px 6px; vertical-align: top; }
     <div class="cat-item active" data-cat="__all__"><span>全部</span><span class="count" id="cnt-all">0</span></div>
     <div class="cat-item" data-cat="__git__"><span>📦 git 源</span><span class="count" id="cnt-git">0</span></div>
     <div class="cat-item" data-cat="__local__"><span>📁 本地</span><span class="count" id="cnt-local">0</span></div>
-    <div class="cat-item" data-cat="__issues__"><span>⚠️ 体检告警</span><span class="count" id="cnt-issues">0</span></div>
+    <div class="cat-item" data-cat="__issues__"><span>⚠️ 结构缺陷</span><span class="count" id="cnt-issues">0</span></div>
     <div class="cat-item" data-cat="__needs_zh__"><span>🌐 待补中文</span><span class="count" id="cnt-zh">0</span></div>
     <div style="height:8px"></div>
     <div style="font-size:11px; color: var(--ink-mute); padding: 4px 10px;">分类</div>
@@ -316,6 +321,8 @@ tbody td { padding: 8px 6px; vertical-align: top; }
     </table>
   </main>
 </section>
+
+<div id="conn-lost">⚠ 与 SkillHub 服务的连接已断开，下面显示的是断开前的数据。回到启动它的终端查看，或重新运行 <code>skillhub open</code>。</div>
 
 <div id="modal-bg"><div class="modal"><div id="modal-content"></div></div></div>
 
@@ -378,7 +385,16 @@ async function api(path, opts = {}) {
     headers["X-SkillHub-Token"] = sessionToken;
   }
 
-  const r = await fetch(path, { ...opts, headers });
+  let r;
+  try {
+    r = await fetch(path, { ...opts, headers });
+  } catch {
+    // 终端关了、Ctrl-C 了、机器睡了。页面上的数据这一刻起就是旧的，
+    // 继续按原样显示等于替一个已经不在的服务背书。
+    setDisconnected(true);
+    throw new Error("和 SkillHub 服务的连接已断开。回到启动它的终端看看，或者重新运行 skillhub open。");
+  }
+  setDisconnected(false);
   const data = await r.json();
   if (!r.ok || data.ok === false) {
     const error = new Error(data.error || `HTTP ${r.status}`);
@@ -386,6 +402,11 @@ async function api(path, opts = {}) {
     throw error;
   }
   return data;
+}
+
+function setDisconnected(off) {
+  const bar = $("#conn-lost");
+  if (bar) bar.style.display = off ? "block" : "none";
 }
 
 function toast(msg, kind = "") {
@@ -442,13 +463,15 @@ function renderAgentControls() {
 }
 
 /* ================= 数据加载 ================= */
-async function load() {
+// 体检要把每个 skill 的目录整个扫一遍。改一句中文介绍、切换一个 agent 的显示，
+// 都不会改变体检结果，所以这些动作不清缓存；同步、卸载、撤销才清。
+async function load({ rescanHealth = false } = {}) {
+  if (rescanHealth) healthCache = null;
   await ensureToken();
   registry = await api("/api/registry");
   // 同一台机器上可能跑着不止一个 SkillHub，各自服务不同的技能目录。
   // 不写出来的话，两个页面长得一模一样。
   $("#app-ssot").textContent = registry.ssot || "";
-  healthCache = null;
   renderAgentControls();
   renderDash();
   renderSidebar();
@@ -457,24 +480,60 @@ async function load() {
 }
 
 /* ================= 看板 ================= */
+// 一个 skill 都没有的时候，四个绿色的「健康状态良好」和三块空白面板既没有
+// 信息量，也不告诉人下一步做什么。这是产品第一印象的位置。
+function renderEmptyDash() {
+  const ssot = registry.ssot || "~/.agents/skills";
+  $("#tiles").innerHTML = `
+    <div class="tile" style="grid-column:1/-1; --tile-accent: var(--accent)">
+      <div class="k" style="text-transform:none; font-size:13px; color:var(--ink)">还没有任何 Skill</div>
+      <div class="s" style="font-size:12.5px; line-height:1.9; margin-top:8px; color:var(--ink-2)">
+        SkillHub 管理的目录是 <code class="mono">${escapeHtml(ssot)}</code>，现在是空的。三条路可以走：<br>
+        <b>1.</b> 已经有 Skill 散在各个 agent 目录里 —— 把它们移进上面这个目录，再点「🩺 体检/同步」，
+        它会列出要给哪些 agent 建链接，你点头才动手。<br>
+        <b>2.</b> 想从 GitHub 装一个 —— 点顶栏「+ 添加」，或者直接翻下面的热门榜。<br>
+        <b>3.</b> 自己写一个 —— 在上面的目录里建个文件夹，放一个 <code class="mono">SKILL.md</code>，
+        开头写上 <code class="mono">name</code> 和 <code class="mono">description</code>，回来点「↻ 重新扫描」。
+      </div>
+    </div>`;
+  $("#chart-cats").innerHTML = '<div class="empty">扫到 Skill 之后这里会显示分类分布</div>';
+  $("#chart-types").innerHTML = "";
+  $("#legend-types").innerHTML = "";
+  $("#health-list").innerHTML = '<div class="empty">还没有可体检的内容</div>';
+  loadHot();
+}
+
 function renderDash() {
   const sk = Object.entries(registry.skills || {});
+  if (sk.length === 0) return renderEmptyDash();
   const vals = sk.map(([,s]) => s);
   const n = vals.length;
   const git = vals.filter(s => s.type === "git" || s.type === "bundle-symlink").length;
   const issues = vals.filter(hasIssue).length;   // 占位，体检结果回来后由 syncIssueTile 覆盖
+  const needZh = vals.filter(s => !s.zh).length;
+  const needCat = vals.filter(s => s.category === "其他 / 未分类").length;
+
+  // 每个 agent 一个格子会把首屏挤满，而这几个数字几乎不变。收成一个：
+  // 有多少 skill 至少能被一个需要软链的 agent 读到。
+  const linkAgents = configuredAgents().filter(a => a.type !== "native");
+  const agentCoverage = {
+    linked: linkAgents.length ? vals.filter(s => linkAgents.some(a => s.agents?.[a.key])).length : n,
+    total: n,
+    detail: linkAgents.length
+      ? `${linkAgents.map(a => shortAgentName(a)).join(" · ")}`
+      : "只有 Codex 原生扫描",
+  };
 
   $("#tiles").innerHTML = [
     { k:"技能总数", v:n, s:"SSOT 唯一真身", a:"var(--s1)" },
-    ...configuredAgents().map(agent => {
-      const count = vals.filter(s => s.agents?.[agent.key]).length;
-      return {
-        k: `${shortAgentName(agent)} ${agent.type === "native" ? "可见" : "已链"}`,
-        v: count,
-        s: agent.type === "native" ? "原生扫描" : `${n-count} 未启用`,
-        a: "var(--s2)",
-      };
-    }),
+    { k:"待补中文", v:needZh, s: needZh ? "点开看是哪些" : "都补齐了", a:"var(--s3)", id:"tile-needzh" },
+    { k:"未分类", v:needCat, s: needCat ? "规则没归进去的" : "都归好了", a:"var(--s4)", id:"tile-needcat" },
+    {
+      k: "Agent 覆盖",
+      v: `${agentCoverage.linked}/${agentCoverage.total}`,
+      s: agentCoverage.detail,
+      a: "var(--s2)",
+    },
     { k:"Git 追踪", v:git, s:"支持一键拉取", a:"var(--s4)" },
     { k:"体检告警", v:issues, s: issues ? "需人工关注" : "健康状态良好", a: issues ? "var(--crit)" : "var(--good)", cls: issues ? "alert" : "ok", id:"tile-issues" },
   ].map(t => `
@@ -650,6 +709,7 @@ function getFilteredSkills() {
   if (activeCategory === "__git__") entries = entries.filter(([,s]) => s.type === "git" || s.type === "bundle-symlink");
   else if (activeCategory === "__local__") entries = entries.filter(([,s]) => s.type === "local");
   else if (activeCategory === "__needs_zh__") entries = entries.filter(([,s]) => !s.zh);
+  else if (activeCategory === "__unclassified__") entries = entries.filter(([,s]) => s.category === "其他 / 未分类");
   else if (activeCategory === "__issues__") entries = entries.filter(([,s]) => hasIssue(s));
   else if (activeCategory !== "__all__") entries = entries.filter(([,s]) => s.category === activeCategory);
   if (agentFilter) {
@@ -673,7 +733,17 @@ function getFilteredSkills() {
 function renderTable() {
   const body = $("#tbl-body");
   body.innerHTML = "";
-  for (const [name, s] of getFilteredSkills()) {
+  const rows = getFilteredSkills();
+  if (rows.length === 0) {
+    const total = Object.keys(registry.skills || {}).length;
+    body.innerHTML = `<tr><td colspan="99" class="empty">${
+      total === 0
+        ? `还没有任何 Skill。把已有的目录放进 ${escapeHtml(registry.ssot || "~/.agents/skills")}，或者用顶栏的「+ 添加」装一个。`
+        : "当前筛选条件下没有 Skill。换个分类，或者清空搜索框。"
+    }</td></tr>`;
+    return;
+  }
+  for (const [name, s] of rows) {
     const tr = document.createElement("tr");
     const trig = s.triggers || {};
     const triggerText = Object.values(trig).slice(0, 3).join(" · ") || name;
@@ -817,8 +887,15 @@ function openZhEditor(name) {
     const button = $("#zh-save");
     button.disabled = true;
     try {
-      await api(`/api/skill/${encodeURIComponent(name)}/meta`, { method: "POST", body: JSON.stringify({
-        zh: $("#zh-input").value, notes: $("#notes-input").value, category: $("#cat-input").value }) });
+      // 只发改过的字段。整份提交会给每个编辑过中文介绍的 skill 钉上一个人工
+      // 分类覆盖，此后规则再怎么改进都绕不过它，而用户完全不知情。
+      const changed = {};
+      if ($("#zh-input").value !== (s.zh || "")) changed.zh = $("#zh-input").value;
+      if ($("#notes-input").value !== (s.notes || "")) changed.notes = $("#notes-input").value;
+      if ($("#cat-input").value !== s.category) changed.category = $("#cat-input").value;
+      if (!Object.keys(changed).length) { closeModal(); return; }
+      await api(`/api/skill/${encodeURIComponent(name)}/meta`, {
+        method: "POST", body: JSON.stringify(changed) });
       toast("已保存元数据", "ok");
       closeModal();
       await load();
@@ -892,6 +969,9 @@ async function openSync() {
     // Findings inside upstream-managed Skills are informational: editing them
     // locally gets undone by the next upgrade. They sit behind a fold so the
     // list shows what the user can actually act on.
+    // 一次点击可能创建几百条软链。不写数量就等于让用户闭着眼睛点。
+    const linkCount = actions.filter(a => a.kind === "link").length;
+    const brokenCount = actions.filter(a => a.kind === "fix-broken-link").length;
     const mine = issues.filter(isDefaultReportItem);
     const rest = issues.filter(i => !isDefaultReportItem(i));
     const background = rest.filter(i => i.owned && i.decision === false);
@@ -931,8 +1011,8 @@ async function openSync() {
       </div>
       <div class="actions">
         <button id="sync-close">关闭</button>
-        ${actions.some(a => a.kind === "fix-broken-link") ? '<button id="sync-clean-broken">移除损坏链接</button>' : ""}
-        ${actions.some(a => a.kind === "link") ? '<button id="sync-apply" class="primary">补全缺失链接</button>' : ""}
+        ${brokenCount ? `<button id="sync-clean-broken">移除损坏链接（${brokenCount} 条）</button>` : ""}
+        ${linkCount ? `<button id="sync-apply" class="primary">补全缺失链接（${linkCount} 条）</button>` : ""}
       </div>`);
     $("#sync-close").onclick = closeModal;
     const runSync = async (button, kind, successLabel) => {
@@ -944,13 +1024,15 @@ async function openSync() {
         });
         toast(`${successLabel}：成功 ${r.succeeded} 项`, "ok");
         closeModal();
-        await load();
+        await load({ rescanHealth: true });
       } catch (e) {
         const d = e.data || {};
         const detail = (d.results || []).filter(x => !x.ok).map(x => x.error).filter(Boolean).join("；");
         toast(`${successLabel}失败：${detail || e.message}`, "error");
         button.disabled = false;
-        button.textContent = kind === "link" ? "补全缺失链接" : "移除损坏链接";
+        button.textContent = kind === "link"
+          ? `补全缺失链接（${linkCount} 条）`
+          : `移除损坏链接（${brokenCount} 条）`;
       }
     };
     const applyBtn = $("#sync-apply");
@@ -981,7 +1063,7 @@ function openUninstall(name) {
       await api(`/api/skill/${encodeURIComponent(name)}`, { method: "DELETE" });
       toast(`已卸载 ${name}（可在回收站恢复）`, "ok");
       closeModal();
-      await load();
+      await load({ rescanHealth: true });
     } catch (e) {
       toast(e.message, "error");
       $("#un-go").disabled = false;
@@ -1065,7 +1147,7 @@ $("#btn-undo").onclick = async () => {
     const r = await api("/api/undo", { method: "POST" });
     if (r.ok) {
       toast(`✓ 成功撤销备份会话: ${r.sessionId}`, "ok");
-      await load();
+      await load({ rescanHealth: true });
     } else {
       toast(r.error || "未找到可撤销的备份记录", "error");
     }
@@ -1077,8 +1159,7 @@ $("#btn-refresh").onclick = async () => {
   toast("重新扫描中…");
   try {
     await api("/api/refresh", { method: "POST" });
-    healthCache = null;
-    await load();
+    await load({ rescanHealth: true });
     toast("已刷新全部数据", "ok");
   } catch (e) {
     toast(`扫描失败: ${e.message}`, "error");
@@ -1098,6 +1179,22 @@ $("#btn-update-all").onclick = async () => {
     try { await load(); } catch {}
   }
 };
+// 首屏的两个格子点得动，落到管理页筛好的列表上——否则用户看见数字也不知道去哪。
+function jumpToFiltered(category) {
+  activeCategory = category;
+  currentView = "manage";
+  $$(".tab").forEach(t => t.classList.toggle("active", t.dataset.view === "manage"));
+  $("#view-dash").style.display = "none";
+  $("#view-manage").style.display = "";
+  renderSidebar();
+  renderTable();
+}
+document.addEventListener("click", (e) => {
+  const tile = e.target.closest("#tile-needzh, #tile-needcat");
+  if (!tile) return;
+  jumpToFiltered(tile.id === "tile-needzh" ? "__needs_zh__" : "__unclassified__");
+});
+
 $("#search").oninput = renderTable;
 $("#agent-filter").onchange = renderTable;
 

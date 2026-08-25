@@ -48,11 +48,35 @@ const MAX_SCAN_ENTRIES = 2_000;
 const MAX_SCAN_DEPTH = 10;
 const MAX_FILE_BYTES = 512 * 1024;
 
+// Files a Skill can tell an Agent to run. The README devotes a section to the
+// risk; the report said nothing about it.
+const SCRIPT_EXTENSIONS = new Set([".sh", ".bash", ".zsh", ".py", ".rb", ".pl", ".ps1", ".js", ".mjs", ".cjs"]);
+
+function isScriptFile(fileName) {
+  const dot = fileName.lastIndexOf(".");
+  return dot > 0 && SCRIPT_EXTENSIONS.has(fileName.slice(dot).toLowerCase());
+}
+
+/**
+ * Relative links out of SKILL.md into the Skill's own files. When one of these
+ * breaks, the Agent is sent to read a file that is not there, mid-task.
+ */
+function findBrokenInternalLinks(dirPath, content) {
+  const broken = [];
+  for (const match of content.matchAll(/\]\(\s*(\.?\/)?((?:references|scripts|assets|examples|templates)\/[^)\s#]+)/g)) {
+    const target = match[2];
+    if (!existsSync(join(dirPath, target))) broken.push(target);
+  }
+  return [...new Set(broken)];
+}
+
 function scanSkillDirectory(dirPath) {
   const secrets = [];
   const hardcodedHomes = [];
+  const scripts = [];
+  const brokenLinks = [];
   const skipped = { tooLarge: 0, fileLimit: false, entryLimit: false, depthLimit: false, unreadable: 0 };
-  if (!existsSync(dirPath)) return { secrets, hardcodedHomes, skipped };
+  if (!existsSync(dirPath)) return { secrets, hardcodedHomes, scripts, brokenLinks, skipped };
 
   const queue = [{ path: dirPath, depth: 0 }];
   let scannedFiles = 0;
@@ -91,6 +115,7 @@ function scanSkillDirectory(dirPath) {
       if ((entry.name === ".env" || entry.name.startsWith(".env.")) && !isEnvTemplate(entry.name)) {
         secrets.push({ file: relPath, type: "Env File (.env)" });
       }
+      if (isScriptFile(entry.name)) scripts.push(relPath);
       if (scannedFiles >= MAX_SCAN_FILES) {
         skipped.fileLimit = true;
         continue;
@@ -129,10 +154,12 @@ function scanSkillDirectory(dirPath) {
       if (match && !isPlaceholderHome(match[1])) {
         hardcodedHomes.push({ file: relPath, sample: match[1] });
       }
+
+      if (relPath === "SKILL.md") brokenLinks.push(...findBrokenInternalLinks(dirPath, content));
     }
   }
 
-  return { secrets, hardcodedHomes, skipped };
+  return { secrets, hardcodedHomes, scripts, brokenLinks, skipped };
 }
 
 // Findings that carry no decision. Nobody rewrites the description of a Skill
@@ -143,6 +170,7 @@ const BACKGROUND_RULES = new Set([
   "long-description",
   "large-skill-md",
   "security-scan-incomplete",
+  "contains-scripts",
 ]);
 
 /**
@@ -167,6 +195,11 @@ export function isDefaultReportItem(issue) {
  * normal thing to do, and reading that as "everything here is upstream" hid
  * every finding in the whole library behind the `--all` flag.
  */
+// Agent Skills names are lowercase words joined by hyphens. A directory that
+// breaks the shape still gets scanned and linked, and still produces a trigger
+// word — one the user may not be able to type, as with a space in it.
+const VALID_SKILL_NAME = /^[a-z0-9]+(-[a-z0-9]+)*$/;
+
 function isThirdParty(s) {
   if (!s) return false;
   return Boolean(s.bundle) || s.type === "git" || s.type === "bundle-symlink";
@@ -222,6 +255,20 @@ function inspectSkill(name, s, issues, location = "") {
         title: "Frontmatter 缺少 description",
         reason: "YAML frontmatter 中缺少必填字段 description",
         recommendation: "在 SKILL.md 开头添加 description 说明",
+        fixable: false,
+      });
+    }
+
+    // Directory name outside the Agent Skills naming shape
+    if (!VALID_SKILL_NAME.test(name)) {
+      found.push({
+        id: "invalid-skill-name",
+        tier: "A",
+        skill: name,
+        path: s.path,
+        title: "目录名不符合 Skill 命名规范",
+        reason: `"${name}" 不是小写字母加连字符的形式，触发词会变成 "/${name}"，部分 agent 加载不了，含空格时斜杠命令也敲不出来`,
+        recommendation: `把目录改名为小写连字符形式，例如 "${name.toLowerCase().replace(/[_\s]+/g, "-").replace(/[^a-z0-9-]/g, "") || "my-skill"}"`,
         fixable: false,
       });
     }
@@ -295,6 +342,32 @@ function inspectSkill(name, s, issues, location = "") {
           title: `硬编码绝对路径 (${hc.file})`,
           reason: `检测到个人绝对路径: ${hc.sample}`,
           recommendation: "改用相对路径或环境变量",
+          fixable: false,
+        });
+      }
+
+      if (scan.brokenLinks.length) {
+        found.push({
+          id: "broken-internal-link",
+          tier: "B",
+          skill: name,
+          path: s.path,
+          title: `SKILL.md 引用了不存在的文件 (${scan.brokenLinks.length} 处)`,
+          reason: `指向 ${scan.brokenLinks.slice(0, 3).join("、")} 等文件，但它们不在这个 skill 目录里`,
+          recommendation: "补上这些文件，或者把 SKILL.md 里的引用删掉",
+          fixable: false,
+        });
+      }
+
+      if (scan.scripts.length) {
+        found.push({
+          id: "contains-scripts",
+          tier: "C",
+          skill: name,
+          path: s.path,
+          title: `含 ${scan.scripts.length} 个可执行脚本`,
+          reason: `例如 ${scan.scripts.slice(0, 3).join("、")}。skill 可以让 agent 以你的权限运行这些文件`,
+          recommendation: "第三方来源的 skill 启用前值得看一眼这些脚本",
           fixable: false,
         });
       }
@@ -437,6 +510,34 @@ export function runDoctor(registry, customHome = null) {
   }
   for (const entry of collectAgentResidentSkills(syncActions, skills)) {
     inspectSkill(entry.name, entry.meta, issues, entry.location);
+  }
+
+  // 3. Trigger-name collisions. Codex triggers on the frontmatter name, so two
+  // directories declaring the same name fight over one command. The existing
+  // name-mismatch rule only compares a Skill against its own directory.
+  const byTriggerName = new Map();
+  for (const [name, s] of Object.entries(skills)) {
+    if (s.broken) continue;
+    const trigger = s.fmName || name;
+    if (!trigger) continue;
+    if (!byTriggerName.has(trigger)) byTriggerName.set(trigger, []);
+    byTriggerName.get(trigger).push(name);
+  }
+  for (const [trigger, names] of byTriggerName) {
+    if (names.length < 2) continue;
+    for (const name of names) {
+      issues.push({
+        id: "duplicate-trigger-name",
+        tier: "A",
+        skill: name,
+        path: skills[name].path,
+        title: "触发名与另一个 Skill 撞车",
+        reason: `${names.join("、")} 的 frontmatter name 都是 "${trigger}"，在 Codex 里都是 $${trigger}`,
+        recommendation: `给其中一个换个 name，让两边的触发命令各自唯一`,
+        fixable: false,
+        owned: !isThirdParty(skills[name]),
+      });
+    }
   }
 
   for (const issue of issues) {
