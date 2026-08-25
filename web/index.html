@@ -47,6 +47,8 @@ header {
 .logo { display:flex; align-items:baseline; gap:8px; margin-right: 6px; }
 .logo b { font-size: 15px; letter-spacing: .04em; }
 .logo .ver { font-size: 10px; color: var(--cyan); letter-spacing: .12em; text-transform: uppercase; }
+.logo #app-ssot { font-size: 10px; color: var(--ink-2); max-width: 260px; overflow: hidden;
+  text-overflow: ellipsis; white-space: nowrap; }
 .tabs { display:flex; gap:2px; background: var(--surface); border:1px solid var(--border); border-radius:8px; padding:2px; }
 .tab {
   padding: 5px 16px; border-radius: 6px; cursor: pointer;
@@ -239,7 +241,8 @@ tbody td { padding: 8px 6px; vertical-align: top; }
 <header>
   <div class="logo">
     <b>⬢ SKILLHUB</b>
-    <span class="ver mono" id="app-ver">v0.2.0</span>
+    <span class="ver mono" id="app-ver"></span>
+    <span class="mono" id="app-ssot" title="当前服务的技能目录"></span>
     <span id="self-update-badge" style="display:none; margin-left:4px"></span>
   </div>
   <div class="tabs">
@@ -442,6 +445,9 @@ function renderAgentControls() {
 async function load() {
   await ensureToken();
   registry = await api("/api/registry");
+  // 同一台机器上可能跑着不止一个 SkillHub，各自服务不同的技能目录。
+  // 不写出来的话，两个页面长得一模一样。
+  $("#app-ssot").textContent = registry.ssot || "";
   healthCache = null;
   renderAgentControls();
   renderDash();
@@ -1115,11 +1121,11 @@ function openSelfUpdateModal() {
   showModal(`
     <h2>⚡ SkillHub 发现新版本</h2>
     <p style="font-size:12.5px;color:var(--ink-2);margin:8px 0">
-      当前版本: <b>v${escapeHtml(u.currentVersion || "0.2.0")}</b> → 最新版本: <b style="color:var(--warn)">v${escapeHtml(u.latestVersion || "")}</b>
+      当前版本: <b>v${escapeHtml(u.currentVersion || "unknown")}</b> → 最新版本: <b style="color:var(--warn)">v${escapeHtml(u.latestVersion || "")}</b>
     </p>
     ${u.releaseNotes ? `<label>更新内容：</label><pre style="max-height:120px">${escapeHtml(u.releaseNotes)}</pre>` : ""}
     <label>如何更新到最新版本：</label>
-    <pre>cd /path/to/skillhub\ngit pull --ff-only\nnpm ci\nnpm test</pre>
+    <pre>${escapeHtml(u.updateCommand || "npm install --global @wsiwsii/skillhub@latest")}</pre>
     <div class="actions">
       <button onclick="closeModal()">稍后提醒</button>
       ${u.releaseUrl ? `<a href="${escapeHtml(sanitizeUrl(u.releaseUrl))}" target="_blank" rel="noopener noreferrer" class="action-btn primary" style="text-decoration:none;display:inline-flex;align-items:center;padding:6px 12px">查看 GitHub 发布页</a>` : ""}

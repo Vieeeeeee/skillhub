@@ -64,6 +64,18 @@ export function createApp(customHome = null) {
   // Security Middleware
   app.use("/api/*", createSecurityMiddleware(customHome));
 
+  // Nothing this API accepts is large. Without a ceiling a single request could
+  // push an arbitrary amount of text into the override file, which is then read
+  // back into memory on every scan.
+  const MAX_BODY_BYTES = 64 * 1024;
+  app.use("/api/*", async (c, next) => {
+    const declared = Number(c.req.header("content-length") || 0);
+    if (Number.isFinite(declared) && declared > MAX_BODY_BYTES) {
+      return c.json({ ok: false, error: `Request body is too large (limit ${MAX_BODY_BYTES} bytes)` }, 413);
+    }
+    await next();
+  });
+
   function isRegistryStale() {
     if (!existsSync(paths.REGISTRY_FILE)) return true;
     try {
@@ -352,6 +364,24 @@ export function createApp(customHome = null) {
   return app;
 }
 
+/**
+ * Asks whoever holds the port whether they are SkillHub, and which Skills
+ * folder they serve. Returns null for anything that does not answer like us.
+ */
+async function probeSkillHub(url) {
+  try {
+    const res = await fetch(`${url}/api/registry`, {
+      headers: { Accept: "application/json" },
+      signal: AbortSignal.timeout(1500),
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    return typeof data?.ssot === "string" && data.version ? { ssot: data.ssot } : null;
+  } catch {
+    return null;
+  }
+}
+
 export function startServer({ port = PORT, host = HOST, customHome = null, autoOpen = true } = {}) {
   const bindHost = String(host || "").trim();
   if (!isLoopbackHost(bindHost)) {
@@ -387,12 +417,29 @@ export function startServer({ port = PORT, host = HOST, customHome = null, autoO
 
   // The usual reason this port is taken is that SkillHub is already running,
   // which is not an error worth a stack trace: open the page that is there.
+  // But only after asking it — the port could belong to anything, and sending
+  // the user to a stranger's page while calling it SkillHub is worse than a
+  // stack trace. A second SkillHub serving a different home counts as a
+  // stranger too, so the answer has to include which home it serves.
   server.on("error", (err) => {
     if (err && err.code === "EADDRINUSE") {
-      console.log(`\n🎨 SkillHub is already running at ${url}`);
-      console.log("   Opening that page instead. Use --port to start a second one.\n");
-      openBrowser();
-      process.exitCode = 0;
+      void (async () => {
+        const other = await probeSkillHub(url);
+        if (!other) {
+          console.error(`\nPort ${port} is in use by something that is not SkillHub.`);
+          console.error(`Start on another port with: skillhub open --port ${port + 1}\n`);
+          process.exitCode = 1;
+          return;
+        }
+        console.log(`\n🎨 SkillHub is already running at ${url}`);
+        console.log(`   Serving ${other.ssot}`);
+        if (other.ssot !== getPaths(customHome).SSOT) {
+          console.log(`   Note: that is a different Skills folder than this command would serve.`);
+        }
+        console.log("   Opening that page instead. Use --port to start a second one.\n");
+        openBrowser();
+        process.exitCode = 0;
+      })();
       return;
     }
     console.error(`\nCould not start SkillHub: ${err?.message || err}\n`);

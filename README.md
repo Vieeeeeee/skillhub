@@ -31,7 +31,15 @@ ln -s ../../.agents/skills/skillhub ~/.claude/skills/skillhub
 
 `skillhub skill-path` prints where the package actually is, so this does not depend on guessing an npm directory.
 
-Codex reads `~/.agents/skills` natively, so the first link covers it. The second is for Claude Code. For Gemini, Cursor or Hermes, run `skillhub sync` and apply the plan it prints. To uninstall later, delete those two links; nothing else is touched.
+Codex reads `~/.agents/skills` natively, so the first link covers it. The second is for Claude Code. To add Gemini, Cursor or Hermes, link this one Skill on its own:
+
+```bash
+skillhub link skillhub gemini
+```
+
+(`skillhub sync` synchronises the whole library — every Skill to every Agent in use. It has its own place, but it is not the command for installing this one Skill.)
+
+To uninstall later, delete those two links; nothing else is touched.
 
 On Windows, run the equivalent from PowerShell, using the printed path:
 

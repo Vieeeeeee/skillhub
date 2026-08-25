@@ -157,7 +157,7 @@ export function buildSyncPlan(customHome = null, { allowHarvest = false } = {}) 
             agent: agKey,
             path: entry.path,
             skill: entry.name,
-            note: "Real directory in agent folder not managed in SSOT. Use harvest to import.",
+            note: "Real directory in the agent folder, not managed in the SSOT. Move it into ~/.agents/skills to share it with other agents.",
           });
         }
       }
@@ -218,7 +218,14 @@ export function buildSyncPlan(customHome = null, { allowHarvest = false } = {}) 
       const hasSkillMd = existsSync(join(entry.path, "SKILL.md"));
       const hasGit = existsSync(join(entry.path, ".git"));
       if (!hasSkillMd && !hasGit) {
-        const subFiles = readdirSync(entry.path);
+        // A directory we cannot read is not a reason to fail the whole plan:
+        // this function backs sync, doctor and two dashboard endpoints.
+        let subFiles;
+        try {
+          subFiles = readdirSync(entry.path);
+        } catch {
+          continue;
+        }
         if (subFiles.length === 0) {
           actions.push({
             kind: "remove-empty-dir",

@@ -31,7 +31,15 @@ ln -s ../../.agents/skills/skillhub ~/.claude/skills/skillhub
 
 `skillhub skill-path` 会把包的真实位置打印出来，所以不用去猜 npm 装到哪了。
 
-Codex 原生就读 `~/.agents/skills`，第一条链接它就够了；第二条是给 Claude Code 的。Gemini、Cursor、Hermes 跑一次 `skillhub sync`，照它列出的计划补上即可。以后不想要了，把这两条链接删掉就行，别的什么都不动。
+Codex 原生就读 `~/.agents/skills`，第一条链接它就够了；第二条是给 Claude Code 的。要给 Gemini、Cursor 或 Hermes 也装上，就单独链这一个：
+
+```bash
+skillhub link skillhub gemini
+```
+
+（`skillhub sync` 是全库同步，会把你所有 Skill 链给所有在用的 Agent。它自有用处，但不是装这一个 Skill 该用的命令。）
+
+以后不想要了，把这两条链接删掉就行，别的什么都不动。
 
 Windows 在 PowerShell 里用等价写法，路径同样由命令打印：
 

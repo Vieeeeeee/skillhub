@@ -282,7 +282,9 @@ export function undoLastBackup(backupsDir) {
   );
 
   if (!target) {
-    return { ok: false, error: "No undoable backup session found" };
+    // Not a failure: a fresh install has nothing recorded yet, and calling that
+    // "Undo failed" reads as breakage when nothing is wrong.
+    return { ok: false, nothingToUndo: true, error: "No recorded operation to undo" };
   }
 
   const { manifest, dir } = target;

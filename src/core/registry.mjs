@@ -13,10 +13,12 @@ import {
 import { join, resolve, dirname, isAbsolute, relative, sep } from "node:path";
 import { randomUUID } from "node:crypto";
 import { execFileSync } from "node:child_process";
-import { getPaths, getAgentDirs, RULES_DIR } from "./paths.mjs";
+import { getPaths, getAgentDirs, RULES_DIR, isAgentVisible } from "./paths.mjs";
 import { classifySkill, loadCategoriesConfig } from "./classify.mjs";
 import { isSymlink, readLinkSafe } from "./link.mjs";
 import { assertSafeName, assertSafeRealPath, isInsideRoot } from "./guard.mjs";
+
+const UNCLASSIFIED_CATEGORY = "其他 / 未分类";
 
 let _knownSourcesCache = null;
 
@@ -361,9 +363,12 @@ export function buildRegistry(customHome = null) {
       zh = desc.slice(0, 140);
     }
 
-    // Determine agent visibility
+    // Determine agent visibility. An Agent the user turned off is left out
+    // entirely: the sync planner already ignored it, so leaving it in here made
+    // `scan` and the dashboard disagree about whether the switch did anything.
     const agents = {};
     for (const [agKey, agCfg] of Object.entries(agentDirs)) {
+      if (!isAgentVisible(agCfg, agKey, overrides)) continue;
       if (agCfg.type === "symlink") {
         // existsSync already follows the link, so a broken one answers false.
         // Accepting isSymlink here reported a dangling link as "this Agent can
@@ -417,11 +422,16 @@ export function buildRegistry(customHome = null) {
       hasDescription: meta.hasDescription,
       lineCount: meta.lineCount,
       agents,
+      // Codex triggers on the frontmatter name, the link-based Agents on the
+      // directory name. That follows from the Agent's discovery model, not from
+      // its key, so it is read off the type.
       triggers: Object.fromEntries(
-        Object.entries(agentDirs).map(([agentKey, cfg]) => [
-          agentKey,
-          `${cfg.triggerPrefix || "/"}${agentKey === "codex" ? fmName || name : name}`,
-        ])
+        Object.entries(agentDirs)
+          .filter(([agentKey, cfg]) => isAgentVisible(cfg, agentKey, overrides))
+          .map(([agentKey, cfg]) => [
+            agentKey,
+            `${cfg.triggerPrefix || "/"}${cfg.type === "native" ? fmName || name : name}`,
+          ])
       ),
     };
   };
@@ -435,8 +445,25 @@ export function buildRegistry(customHome = null) {
       if (name.includes(".pre-import-")) continue;
 
       const fullPath = join(paths.SSOT, name);
-      if (entry.isSymbolicLink() && !existsSync(fullPath)) continue;
       if (!entry.isDirectory() && !entry.isSymbolicLink()) continue;
+
+      // A dangling link used to be dropped here, so the dashboard listed
+      // nothing at all and only the health report knew it existed.
+      if (entry.isSymbolicLink() && !existsSync(fullPath)) {
+        skills[name] = {
+          type: "broken-symlink",
+          broken: true,
+          path: fullPath,
+          target: readLinkSafe(fullPath) || "",
+          category: UNCLASSIFIED_CATEGORY,
+          description: "",
+          zh: "",
+          notes: "",
+          agents: {},
+          triggers: {},
+        };
+        continue;
+      }
 
       addSkillEntry(name, fullPath);
     }
@@ -481,14 +508,14 @@ export function buildRegistry(customHome = null) {
     generatedAt: new Date().toISOString(),
     ssot: paths.SSOT,
     knownCategories: loadCategoriesConfig().map((c) => c.name),
-    agents: {
-      ...Object.fromEntries(
-        Object.entries(agentDirs)
-          .filter(([, cfg]) => cfg.type === "symlink")
-          .map(([k, cfg]) => [k, cfg.absPath])
-      ),
-      codex: `${paths.SSOT} (原生扫描)`,
-    },
+    agents: Object.fromEntries(
+      Object.entries(agentDirs)
+        .filter(([key, cfg]) => isAgentVisible(cfg, key, overrides))
+        .map(([key, cfg]) => [
+          key,
+          cfg.type === "native" ? `${cfg.absPath} (原生扫描)` : cfg.absPath,
+        ])
+    ),
     categories,
     skills,
   };

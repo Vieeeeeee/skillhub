@@ -91,16 +91,46 @@ test("registry uses configured agent triggers and metadata overrides", (t) => {
   const skillDir = join(tmp, ".agents", "skills", "demo");
   mkdirSync(skillDir, { recursive: true });
   writeFileSync(join(skillDir, "SKILL.md"), "---\nname: demo\ndescription: demo skill\n---\n");
+  // cursor is switched on explicitly; gemini is left to the default, and its
+  // directory does not exist in this sandbox.
   saveUserOverrides(join(tmp, ".skillhub", "overrides.json"), {
     notesOverrides: { demo: "portable note" },
     managedSkills: { demo: "external-manager" },
+    agentVisibility: { cursor: true },
   });
 
   const reg = buildRegistry(tmp);
   assert.equal(reg.skills.demo.notes, "portable note");
   assert.equal(reg.skills.demo.managed, "external-manager");
+
+  // Codex discovers natively and triggers on the frontmatter name; the
+  // link-based Agents trigger on the directory name.
   assert.equal(reg.skills.demo.triggers.codex, "$demo");
   assert.equal(reg.skills.demo.triggers.cursor, "/demo");
+
+  // An Agent that is not in use is left out of the registry entirely, so the
+  // switch means the same thing to `scan`, to the sync planner and to the
+  // dashboard.
+  assert.equal(reg.skills.demo.triggers.gemini, undefined);
+  assert.equal(reg.skills.demo.agents.gemini, undefined);
+  assert.ok(!("gemini" in reg.agents));
+  assert.ok("cursor" in reg.agents);
+});
+
+test("a dangling SSOT link stays in the listing instead of vanishing", (t) => {
+  const tmp = mkdtempSync(join(tmpdir(), "skillhub-broken-ssot-"));
+  t.after(() => rmSync(tmp, { recursive: true, force: true }));
+
+  const ssot = join(tmp, ".agents", "skills");
+  mkdirSync(ssot, { recursive: true });
+  symlinkSync(join(tmp, "gone"), join(ssot, "orphan"), "dir");
+
+  // Dropping it meant the dashboard showed nothing at all and only the health
+  // report knew the entry existed.
+  const entry = buildRegistry(tmp).skills.orphan;
+  assert.ok(entry, "the entry has to appear");
+  assert.equal(entry.type, "broken-symlink");
+  assert.equal(entry.broken, true);
 });
 
 test("overrides writes are readable and malformed files fail loudly", (t) => {

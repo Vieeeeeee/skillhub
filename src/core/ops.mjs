@@ -23,6 +23,13 @@ import {
 } from "./registry.mjs";
 
 const GIT_TIMEOUT_MS = 30_000;
+
+// A blurb is one sentence about when to reach for the Skill, and a note is a
+// reminder to yourself. Neither has a reason to be long, and both are read back
+// into memory and re-serialised on every single scan.
+const MAX_BLURB_CHARS = 500;
+const MAX_NOTES_CHARS = 2_000;
+const MAX_CATEGORY_CHARS = 60;
 const MAX_REPOSITORY_BYTES = 100 * 1024 * 1024;
 const MAX_REPOSITORY_ENTRIES = 10_000;
 
@@ -37,6 +44,14 @@ function assertLinkPointsTo(linkPath, expectedTarget) {
     throw new Error(`Refusing to remove link at ${linkPath} because it points elsewhere`);
   }
   return rawTarget;
+}
+
+function assertWithinLength(value, limit, label) {
+  if (value === undefined || value === null) return;
+  if (typeof value !== "string") throw new Error(`Invalid ${label}: expected text`);
+  if (value.length > limit) {
+    throw new Error(`${label} is too long: ${value.length} characters, limit is ${limit}`);
+  }
 }
 
 function saveOverridesWithBackup(session, overridesFile, overrides) {
@@ -169,6 +184,10 @@ export function setMetadataOverride(skillName, { zh, notes, category }, customHo
   if (!existsSync(skillPath) || !existsSync(join(skillPath, "SKILL.md"))) {
     throw new Error(`Skill "${skillName}" not found or missing its root SKILL.md at ${skillPath}`);
   }
+  assertWithinLength(zh, MAX_BLURB_CHARS, "Chinese blurb");
+  assertWithinLength(notes, MAX_NOTES_CHARS, "note");
+  assertWithinLength(category, MAX_CATEGORY_CHARS, "category name");
+
   return withOverridesLock(paths.OVERRIDES_FILE, () => {
     const overrides = loadUserOverrides(paths.OVERRIDES_FILE);
     const session = createBackupSession(paths.BACKUPS_DIR, `metadata-${skillName}`);

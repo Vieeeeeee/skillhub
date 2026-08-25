@@ -178,6 +178,11 @@ function isThirdParty(s) {
  * can say where the directory actually is.
  */
 function inspectSkill(name, s, issues, location = "") {
+  // A dangling link has nothing to inspect, and the sync plan already reports
+  // it as broken. Running the per-Skill rules here would add "missing SKILL.md"
+  // on top, describing the same one problem twice.
+  if (s?.broken) return;
+
   const found = [];
     // Missing SKILL.md
     if (!s.hasSkillMd) {
@@ -394,6 +399,18 @@ export function runDoctor(registry, customHome = null) {
         reason: "目录内无任何文件且无 SKILL.md",
         recommendation: "清理空文件夹",
         fixable: true,
+        action: act,
+      });
+    } else if (act.kind === "report-not-a-skill") {
+      issues.push({
+        id: "not-a-skill",
+        tier: "B",
+        skill: act.skill,
+        path: act.path,
+        title: "目录里没有 SKILL.md",
+        reason: "统一管理目录下有内容，但缺少入口文档，任何 agent 都读不到它",
+        recommendation: "补一个 SKILL.md，或者把它移出 ~/.agents/skills",
+        fixable: false,
         action: act,
       });
     } else if (act.kind === "report-agent-orphan") {

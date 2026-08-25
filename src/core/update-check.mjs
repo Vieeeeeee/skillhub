@@ -4,15 +4,30 @@ import { getPaths, ROOT_DIR } from "./paths.mjs";
 
 const CACHE_TTL_MS = 24 * 3600 * 1000; // 24 hours
 const DEFAULT_REPO = "Vieeeeeee/skillhub";
-const UPDATE_COMMAND = "git pull --ff-only && npm ci && npm test";
+
+function readPackageJson() {
+  try {
+    return JSON.parse(readFileSync(join(ROOT_DIR, "package.json"), "utf-8"));
+  } catch {
+    return {};
+  }
+}
+
+export function getPackageName() {
+  return readPackageJson().name || "@wsiwsii/skillhub";
+}
 
 export function getCurrentVersion() {
-  try {
-    const pkg = JSON.parse(readFileSync(join(ROOT_DIR, "package.json"), "utf-8"));
-    return pkg.version || "0.2.0";
-  } catch {
-    return "0.2.0";
-  }
+  return readPackageJson().version || "unknown";
+}
+
+/**
+ * How the user actually installs this. The README teaches a global npm
+ * install, so telling them to pull a git checkout they never made was a dead
+ * end at the exact moment they wanted to act.
+ */
+export function getUpdateCommand() {
+  return `npm install --global ${getPackageName()}@latest`;
 }
 
 function compareVersions(v1, v2) {
@@ -43,48 +58,29 @@ export async function checkSelfUpdate({ force = false, customHome = null, repo =
           ...cached,
           currentVersion,
           hasUpdate: compareVersions(currentVersion, cached.latestVersion) > 0,
-          updateCommand: UPDATE_COMMAND,
+          updateCommand: getUpdateCommand(),
         };
       }
     } catch {}
   }
 
   let latestVersion = currentVersion;
-  let releaseUrl = `https://github.com/${repo}/releases`;
-  let releaseNotes = "";
+  const releaseUrl = `https://github.com/${repo}/releases`;
 
+  // The registry that actually serves this package is the one worth asking.
+  // Reading GitHub releases meant a tag without a publish reported a version
+  // nobody could install, and a publish without a tag reported nothing at all.
   try {
-    const res = await fetch(`https://api.github.com/repos/${repo}/releases/latest`, {
-      headers: {
-        Accept: "application/vnd.github+json",
-        "User-Agent": "SkillHub-SelfUpdate-Checker",
-      },
+    const res = await fetch(`https://registry.npmjs.org/${getPackageName()}/latest`, {
+      headers: { Accept: "application/json", "User-Agent": "SkillHub-SelfUpdate-Checker" },
       signal: AbortSignal.timeout(4000),
     });
-
     if (res.ok) {
       const data = await res.json();
-      latestVersion = (data.tag_name || data.name || currentVersion).replace(/^v/, "");
-      releaseUrl = data.html_url || releaseUrl;
-      releaseNotes = (data.body || "").slice(0, 300);
-    } else if (res.status === 404) {
-      // If no releases yet, check latest tag
-      const tagRes = await fetch(`https://api.github.com/repos/${repo}/tags`, {
-        headers: {
-          Accept: "application/vnd.github+json",
-          "User-Agent": "SkillHub-SelfUpdate-Checker",
-        },
-        signal: AbortSignal.timeout(4000),
-      });
-      if (tagRes.ok) {
-        const tags = await tagRes.json();
-        if (tags && tags.length > 0) {
-          latestVersion = (tags[0].name || currentVersion).replace(/^v/, "");
-        }
-      }
+      if (typeof data.version === "string") latestVersion = data.version;
     }
-  } catch (err) {
-    // Offline or rate-limited; fallback gracefully
+  } catch {
+    // Offline or rate-limited; the cached or current version stands.
   }
 
   const hasUpdate = compareVersions(currentVersion, latestVersion) > 0;
@@ -94,8 +90,8 @@ export async function checkSelfUpdate({ force = false, customHome = null, repo =
     latestVersion,
     hasUpdate,
     releaseUrl,
-    releaseNotes,
-    updateCommand: UPDATE_COMMAND,
+    releaseNotes: "",
+    updateCommand: getUpdateCommand(),
     checkedAt: new Date().toISOString(),
   };
 

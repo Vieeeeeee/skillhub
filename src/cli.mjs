@@ -89,13 +89,48 @@ const KNOWN_OPTIONS = new Set([
   "--help", "-h", "--version", "-v",
 ]);
 
+// 取值型选项：它后面那个词是值，不是选项。
+const VALUE_OPTIONS = new Set(["--port"]);
+
+// 位置参数是用户自己写的文本——分类名、中文介绍、skill 名。这些完全可以以
+// 短横线开头，扫描时必须跳过，否则 `categorize x "-实验"` 会被当成未知选项。
+const POSITIONAL_ARG_COUNT = {
+  describe: 2, categorize: 2, link: 2, unlink: 2, update: 1, agents: 2,
+};
+
 function assertKnownOptions() {
-  const unknown = args.filter((a) => a.startsWith("-") && !KNOWN_OPTIONS.has(a));
+  const skip = new Set();
+  const positional = POSITIONAL_ARG_COUNT[command] || 0;
+  for (let i = 1; i <= positional && i < args.length; i += 1) skip.add(i);
+  for (let i = 0; i < args.length; i += 1) {
+    if (VALUE_OPTIONS.has(args[i])) skip.add(i + 1);
+  }
+
+  const unknown = args.filter(
+    (a, i) => !skip.has(i) && a.startsWith("-") && !KNOWN_OPTIONS.has(a)
+  );
   if (unknown.length) {
     console.error(`Unknown option(s): ${unknown.join(", ")}`);
     printUsage();
     process.exit(1);
   }
+}
+
+/**
+ * `--port` with a missing or non-numeric value used to fall back to the default
+ * without saying so, which reads as "it ignored me".
+ */
+function resolvePort() {
+  const idx = args.indexOf("--port");
+  if (idx === -1) return PORT;
+
+  const raw = args[idx + 1];
+  const port = Number(raw);
+  if (raw === undefined || raw.startsWith("-") || !Number.isInteger(port) || port < 1 || port > 65535) {
+    console.error(`--port needs a number between 1 and 65535${raw === undefined ? " (none given)" : `, got "${raw}"`}`);
+    process.exit(1);
+  }
+  return port;
 }
 
 async function main() {
@@ -119,8 +154,7 @@ async function main() {
 
     case "open":
     case "start": {
-      const portIdx = args.indexOf("--port");
-      const port = portIdx !== -1 && args[portIdx + 1] ? Number(args[portIdx + 1]) : PORT;
+      const port = resolvePort();
       const noOpen = args.includes("--no-open");
       startServer({ port, autoOpen: !noOpen });
       break;
@@ -279,6 +313,8 @@ async function main() {
           console.log(`  ${log}`);
         }
         console.log("");
+      } else if (result.nothingToUndo) {
+        console.log(`\n没有需要撤销的操作。\n`);
       } else {
         console.log(`\n⚠ Undo failed: ${result.error}\n`);
       }
@@ -359,7 +395,13 @@ async function main() {
         });
       }
       if (jsonMode) {
-        console.log(JSON.stringify({ total: items.length, categories: Object.keys(reg.categories || {}), items }, null, 2));
+        // 规则能产出的分类 + 当前实际用到的。只给后者会让调用方永远看不到
+        // 一个当前还没有成员的分类，也就永远不会把 skill 归进去。
+        const categories = [...new Set([
+          ...(reg.knownCategories || []),
+          ...Object.keys(reg.categories || {}),
+        ])].sort();
+        console.log(JSON.stringify({ total: items.length, categories, items }, null, 2));
         return;
       }
       console.log(`\n📝 待补充 ${items.length} 项\n`);

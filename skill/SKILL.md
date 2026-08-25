@@ -10,7 +10,7 @@ description: >-
 
 ## 铁律
 
-- **盘点全程只读。** `scan`、`pending`、`agents`、`doctor` 和不带参数的 `sync` 都不改任何文件，随便跑。
+- **盘点不碰用户的 skill。** `scan`、`pending`、`agents`、`doctor` 和不带参数的 `sync` 随便跑，它们只在 `~/.agents/skills`、`~/.skillhub/` 下建立自己的目录、清单缓存和版本检查缓存，一个 skill 目录都不动。
 - **写操作先确认。** `sync --apply`、`link`/`unlink`、卸载这些动之前，把影响范围说清楚再等用户点头。即使用户说"你看着办"，也要先讲清楚会建哪些链接、动哪几个 agent。
 - **不碰 skill 内容。** 中文介绍、分类、agent 可见性都只写 SkillHub 自己的配置（`~/.skillhub/`），SKILL.md 一个字节都不动。
 - **卸载不是删除**，东西进 `~/.agents/_trash/`，随时能恢复。
@@ -20,19 +20,28 @@ description: >-
 
 ### Step 0 确保命令可用
 
-先跑 `skillhub --version`。有版本号就往下走。
+当前目录里有 `bin/skillhub` 时那就是 SkillHub 的源码仓库，用 `./bin/skillhub --version`，后续所有命令都走这个路径。否则跑 `skillhub --version`。有版本号就往下走。
 
-报 command not found 就装一次：
+这一步分清楚很重要：在源码仓库里装一份全局版，之后所有命令跑的都是 npm 那份，用户改的代码一点效果看不到，而且很难想到原因。
+
+`skillhub` 报 command not found 就装一次：
 
 ```bash
 npm install --global @wsiwsii/skillhub
 ```
 
-全局安装因为权限失败时，装到固定位置再用绝对路径调用（macOS/Linux 是 `~/.skillhub/cli`，Windows 是 `%USERPROFILE%\.skillhub\cli`）：
+全局安装因为权限失败时，装到固定位置再用绝对路径调用。macOS 和 Linux：
 
 ```bash
 npm install --prefix ~/.skillhub/cli @wsiwsii/skillhub
 node ~/.skillhub/cli/node_modules/@wsiwsii/skillhub/bin/skillhub --version
+```
+
+Windows 的 PowerShell 不展开 `~`，路径要写 `$env:USERPROFILE`：
+
+```powershell
+npm install --prefix "$env:USERPROFILE\.skillhub\cli" @wsiwsii/skillhub
+node "$env:USERPROFILE\.skillhub\cli\node_modules\@wsiwsii\skillhub\bin\skillhub" --version
 ```
 
 装完再确认一次版本号，后续所有命令都用同一个调用方式。
