@@ -13,7 +13,9 @@
   --border-strong: rgba(148, 197, 255, 0.22);
   --ink: #eef2f8;
   --ink-2: #9aa7ba;
-  --ink-mute: #5d6b80;
+  /* 触发词、分类名、格子说明都用这一档。#5d6b80 在深色底上只有 3.5:1，
+     配 10-11px 的字号是全页最难读的地方——而触发词正是来这儿最想看的东西。 */
+  --ink-mute: #7d8a9e;
   --grid: #1b2330;
   --accent: #3987e5;
   --accent-glow: rgba(57, 135, 229, 0.35);
@@ -39,6 +41,7 @@ body {
 header {
   position: sticky; top: 0; z-index: 20;
   display: flex; align-items: center; gap: 10px;
+  flex-wrap: wrap;
   padding: 10px 20px;
   background: rgba(11,15,22,.85);
   backdrop-filter: blur(10px);
@@ -57,6 +60,15 @@ header {
 }
 .tab.active { background: var(--surface-2); color: var(--ink); box-shadow: inset 0 0 0 1px var(--border-strong), 0 0 12px -4px var(--accent-glow); }
 .spacer { flex: 1; }
+/* 九个中文标签的按钮，在 965px 的分屏宽度下就放不进一行了。不换行的话
+   最右边的「↻ 重新扫描」——排障表里让用户点的那个——会被挤出视口，
+   而且因为顶栏不横向滚动，根本够不着。 */
+.toolbar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+@media (max-width: 720px) {
+  header { padding: 8px 12px; gap: 8px; }
+  .toolbar button { padding: 5px 9px; font-size: 12px; }
+  .logo #app-ssot { display: none; }
+}
 button {
   background: var(--surface-2); color: var(--ink);
   border: 1px solid var(--border); border-radius: 7px;
@@ -72,6 +84,10 @@ input[type=text], input[type=url], textarea, select {
   padding: 6px 10px; font: inherit; outline: none;
 }
 input:focus, textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(57,135,229,.15); }
+/* 只给输入框写过 :focus，用键盘的人看不出焦点落在哪个按钮上。 */
+button:focus-visible, a:focus-visible, [tabindex]:focus-visible {
+  outline: 2px solid var(--accent); outline-offset: 2px;
+}
 
 /* ---------- dashboard ---------- */
 #view-dash { max-width: 1280px; margin: 0 auto; padding: 22px 24px 60px; }
@@ -198,12 +214,17 @@ tbody td { padding: 8px 6px; vertical-align: top; }
 .badge.canon { background: rgba(57,135,229,.15); color: #7cb3f5; }
 .badge.warnb { background: rgba(208,59,59,.18); color: #f08c8c; }
 .agent-cell { text-align: center; }
+/* 真按钮，不是 span：212 行 × 5 个 agent = 1060 个开关，全都要能用 Tab
+   走到、能用空格按下。下面这些是抵消全局 button 样式，不是新造型。 */
 .checkbox {
-  display: inline-block; width: 18px; height: 18px;
+  display: inline-block; width: 18px; height: 18px; padding: 0;
+  background: transparent; box-shadow: none;
   border: 1px solid var(--border-strong); border-radius: 4px; cursor: pointer;
   vertical-align: middle; transition: all .15s;
 }
+.checkbox:hover { border-color: var(--accent); box-shadow: none; }
 .checkbox.checked { background: var(--accent); border-color: var(--accent); box-shadow: 0 0 8px -2px var(--accent-glow); }
+.checkbox.checked:hover { background: var(--accent); }
 .checkbox.checked::after { content: "✓"; color: #fff; font-size: 11px; line-height: 16px; display: block; text-align: center; }
 .native-dot { color: #34caa0; font-size: 13px; }
 
@@ -255,13 +276,15 @@ tbody td { padding: 8px 6px; vertical-align: top; }
     <button class="tab" data-view="manage">管理</button>
   </div>
   <span class="spacer"></span>
-  <button id="btn-add">+ 添加</button>
-  <button id="btn-trash">🗑 回收站</button>
-  <button id="btn-sync">🩺 体检/同步</button>
-  <button id="btn-undo">↩︎ 撤销 (Undo)</button>
-  <button id="btn-update-all">⟳ 更新全部</button>
-  <button id="btn-agents">⚙ Agent</button>
-  <button id="btn-refresh">↻ 重新扫描</button>
+  <div class="toolbar">
+    <button id="btn-add">+ 添加</button>
+    <button id="btn-trash">🗑 回收站</button>
+    <button id="btn-sync">🩺 体检/同步</button>
+    <button id="btn-undo">↩︎ 撤销 (Undo)</button>
+    <button id="btn-update-all">⟳ 更新全部</button>
+    <button id="btn-agents">⚙ Agent</button>
+    <button id="btn-refresh">↻ 重新扫描</button>
+  </div>
 </header>
 
 <!-- ================= 看板 ================= -->
@@ -363,16 +386,22 @@ function sanitizeUrl(url) {
   return "";
 }
 
+// load() and checkAppUpdate() start together on every page open, and both
+// wanted a token. Without holding on to the request in flight, each saw an
+// empty token and sent its own.
+let tokenRequest = null;
 async function ensureToken() {
   if (sessionToken) return sessionToken;
-  try {
-    const res = await fetch("/api/session");
-    const d = await res.json();
-    if (d.ok && d.token) {
-      sessionToken = d.token;
-    }
-  } catch {}
-  return sessionToken;
+  tokenRequest ||= (async () => {
+    try {
+      const res = await fetch("/api/session");
+      const d = await res.json();
+      if (d.ok && d.token) sessionToken = d.token;
+    } catch {}
+    tokenRequest = null;
+    return sessionToken;
+  })();
+  return tokenRequest;
 }
 
 async function api(path, opts = {}) {
@@ -438,8 +467,14 @@ function configuredAgents() {
   return allAgents().filter(a => a.visible !== false);
 }
 
+// Column headers and trigger labels have very little room, so an Agent goes by
+// the name a person would say. The old rule cut at the first "Code" anywhere in
+// the string, which turned OpenAI Codex into "OpenAI".
 function shortAgentName(agent) {
-  return (agent.name || agent.key).replace(/\s+(Code|CLI|Agent).*$/i, "").split(" /")[0];
+  const full = (agent.name || agent.key).split(" /")[0].trim();
+  const trimmed = full.replace(/\s+(Code|CLI|Agent)$/i, "").trim();
+  const words = trimmed.split(/\s+/);
+  return words.length > 1 ? words.at(-1) : trimmed;
 }
 
 function renderAgentControls() {
@@ -745,8 +780,7 @@ function renderTable() {
   }
   for (const [name, s] of rows) {
     const tr = document.createElement("tr");
-    const trig = s.triggers || {};
-    const triggerText = Object.values(trig).slice(0, 3).join(" · ") || name;
+    const triggerText = triggerSummary(name, s);
     const trigHtml = s.nameMismatch
       ? `<span class="warnt" title="frontmatter name 与目录名不一致">${escapeHtml(triggerText)}</span>`
       : escapeHtml(triggerText);
@@ -772,6 +806,25 @@ function renderTable() {
   }
 }
 
+// 以前是 Object.values(triggers).slice(0,3)：Claude 和 Gemini 的触发词字面
+// 一模一样，于是每行都是「/x · $x · /x」——重复、看不出属于谁，第四五个
+// agent 直接不显示。改成按触发词去重，并标上是谁在用。
+function triggerSummary(name, s) {
+  const trig = s.triggers || {};
+  const byTrigger = new Map();
+  for (const agent of configuredAgents()) {
+    const t = trig[agent.key];
+    if (!t) continue;
+    if (!byTrigger.has(t)) byTrigger.set(t, []);
+    byTrigger.get(t).push(shortAgentName(agent));
+  }
+  if (byTrigger.size === 0) return name;
+  const total = configuredAgents().length;
+  return [...byTrigger.entries()]
+    .map(([t, owners]) => (owners.length === total ? t : `${t} (${owners.join("·")})`))
+    .join(" · ");
+}
+
 function renderAgentCell(name, s, agent) {
   if (s.type === "agent-specific") {
     return s.agents[agent.key] ? '<span class="native-dot" title="agent 专属版本">●</span>' : '<span style="opacity:.3">—</span>';
@@ -779,7 +832,11 @@ function renderAgentCell(name, s, agent) {
   if (agent.type === "native") {
     return s.agents[agent.key] ? '<span class="native-dot" title="原生扫描 SSOT，自动可见">●</span>' : '<span style="opacity:.3">—</span>';
   }
-  return `<span class="checkbox ${s.agents[agent.key] ? 'checked' : ''}" data-action="toggle" data-name="${escapeHtml(name)}" data-agent="${escapeHtml(agent.key)}"></span>`;
+  const on = Boolean(s.agents[agent.key]);
+  return `<button type="button" role="switch" aria-checked="${on}" class="checkbox ${on ? 'checked' : ''}"`
+    + ` title="${escapeHtml(shortAgentName(agent))} ${on ? '已链接' : '未链接'}：${escapeHtml(name)}"`
+    + ` aria-label="${escapeHtml(shortAgentName(agent))}${on ? '已链接' : '未链接'} ${escapeHtml(name)}"`
+    + ` data-action="toggle" data-name="${escapeHtml(name)}" data-agent="${escapeHtml(agent.key)}"></button>`;
 }
 
 function renderOrigin(s) {
@@ -931,9 +988,13 @@ async function openAgentSettings() {
   const agents = allAgents();
   const rows = agents.map(a => {
     const on = a.visible !== false;
-    const note = a.type === "native"
-      ? "原生扫描，无需软链"
-      : (a.available ? "" : "该目录在这台电脑上不存在");
+    // README 说 Cursor 是实验性支持，但这个标记一路发到前端却从没渲染过，
+    // 只用面板的人无从得知。
+    const experimental = a.status === "experimental" ? "实验性支持，路径可能随该 Agent 版本变化" : "";
+    const note = [
+      a.type === "native" ? "原生扫描，无需软链" : (a.available ? "" : "该目录在这台电脑上不存在"),
+      experimental,
+    ].filter(Boolean).join(" · ");
     return `
       <div class="sync-item" style="display:flex;align-items:center;gap:10px">
         <input type="checkbox" data-agent="${escapeHtml(a.key)}" ${on ? "checked" : ""} style="width:16px;height:16px">
@@ -1162,6 +1223,9 @@ function openAddSkill() {
 function showModal(html) { $("#modal-content").innerHTML = html; $("#modal-bg").classList.add("show"); }
 function closeModal() { $("#modal-bg").classList.remove("show"); }
 $("#modal-bg").onclick = e => { if (e.target.id === "modal-bg") closeModal(); };
+document.addEventListener("keydown", e => {
+  if (e.key === "Escape" && $("#modal-bg").classList.contains("show")) closeModal();
+});
 
 /* ================= 顶部按钮 ================= */
 $("#btn-add").onclick = openAddSkill;
