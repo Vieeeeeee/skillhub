@@ -242,10 +242,10 @@ check-update       Check whether a newer SkillHub release exists
 
 | Area | Status | Notes |
 |---|---|---|
-| Node.js | Supported: 20+ | The CI matrix covers Node 20, 22 and 24. Node 24 is the version the release pipeline runs the suite on; it was just added and has no green run behind it yet. |
+| Node.js | Supported: 20+ | The CI matrix covers Node 20, 22 and 24 across three operating systems — nine jobs. Node 24 is the version the release pipeline runs the suite on. |
 | macOS | Locally verified | Source tests and packed global-install/dashboard smoke test passed. |
-| Linux | CI verified | The latest GitHub Actions run passes on Node.js 20 and 22 (24 is in the matrix, awaiting its first run); verify your local Agent paths. |
-| Windows | CI verified | The latest GitHub Actions run passes on Node.js 20 and 22 (24 is in the matrix, awaiting its first run). Junction behavior still depends on local filesystem policy and permissions; review `sync` before `--apply`. |
+| Linux | CI verified | The latest GitHub Actions run passes on Node.js 20, 22 and 24; verify your local Agent paths. |
+| Windows | CI verified | The latest GitHub Actions run passes on Node.js 20, 22 and 24. Junction behavior still depends on local filesystem policy and permissions; review `sync` before `--apply`. |
 | Claude, Gemini, Hermes | Link adapters | Paths are configurable in `rules/agents.json`. |
 | Codex | Native adapter | Reads the configured shared Skills directory directly, so it needs no links. It also scans its own `~/.codex/skills`, where the Skill Creator it ships with installs by default; a Skill that exists only there is reported in the sync plan. Verify behavior against your installed Codex version. |
 | Cursor | Experimental | Included to exercise configuration-driven adapters; not claimed as fully verified. |
