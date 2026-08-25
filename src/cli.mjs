@@ -339,6 +339,9 @@ async function main() {
       if (result.ok) {
         buildRegistry();
         console.log(`\n✓ Undone backup session: ${result.sessionId}`);
+        if (result.batchedWrites > 1) {
+          console.log(`  这一批合并了 ${result.batchedWrites} 次写入，一起回到了那之前的状态`);
+        }
         for (const log of result.logs) {
           console.log(`  ${log}`);
         }
@@ -360,7 +363,10 @@ async function main() {
       console.log(`\n📦 SkillHub Backups (${backups.length}):`);
       for (const b of backups) {
         const undone = b.manifest.undoneAt ? " (Undone)" : "";
-        console.log(`  • ${b.id} - ${b.manifest.action} [${b.manifest.operations.length} ops]${undone}`);
+        // A run of writes shares one session, so "1 op" is not the whole story:
+        // undoing this entry may take back eighty-four blurbs.
+        const batched = b.batchedWrites > 1 ? `，合并了 ${b.batchedWrites} 次写入` : "";
+        console.log(`  • ${b.id} - ${b.manifest.action} [${b.manifest.operations.length} ops${batched}]${undone}`);
       }
       console.log("");
       break;
@@ -638,6 +644,13 @@ async function main() {
 }
 
 main().catch((err) => {
-  console.error("Error:", err.message);
+  // A caller that asked for JSON gets JSON on the way out too. Answering a
+  // failure in prose meant a script got a parse error instead of a reason —
+  // the same half-kept promise the success path used to make.
+  if (process.argv.slice(2).includes("--json")) {
+    console.log(JSON.stringify({ ok: false, error: err.message }, null, 2));
+  } else {
+    console.error("Error:", err.message);
+  }
   process.exit(1);
 });

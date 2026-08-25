@@ -193,3 +193,28 @@ test("pending only lists Skills that describe can actually write to", (t) => {
   assert.ok(names.includes("alpha"));
   assert.ok(!names.includes("twin"), "twin cannot be written to, so it must not be offered");
 });
+
+test("a failure answers in JSON when the caller asked for JSON", (t) => {
+  const home = makeHome(t, { alpha: "An english description." });
+
+  // The Skill teaches agents to pass --json on every call. Answering a failure
+  // in prose gave them a parse error instead of a reason.
+  const out = runFailing(home, ["describe", "no-such-skill", "x", "--json"]);
+  const parsed = JSON.parse(out);
+  assert.equal(parsed.ok, false);
+  assert.match(parsed.error, /no-such-skill/);
+
+  // Without --json it stays prose.
+  assert.doesNotMatch(runFailing(home, ["describe", "no-such-skill", "x"]), /^\s*\{/);
+});
+
+test("backups and undo say how many writes a session covers", (t) => {
+  const home = makeHome(t, { alpha: "d", beta: "d", gamma: "d" });
+  run(home, ["describe", "alpha", "一"]);
+  run(home, ["describe", "beta", "二"]);
+  run(home, ["describe", "gamma", "三"]);
+
+  // "1 op" is true and useless: undoing this takes back three blurbs.
+  assert.match(run(home, ["backups"]), /合并了 3 次写入/);
+  assert.match(run(home, ["undo"]), /合并了 3 次写入/);
+});

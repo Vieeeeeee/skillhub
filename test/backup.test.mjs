@@ -13,6 +13,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createBackupSession, recordOperation, listBackups, undoLastBackup } from "../src/core/backup.mjs";
 import { createLink, isSymlink } from "../src/core/link.mjs";
+import { setMetadataOverride } from "../src/core/ops.mjs";
+import { getPaths } from "../src/core/paths.mjs";
 
 test("backup session logs operations and undoLastBackup reverses them", (t) => {
   const tmp = mkdtempSync(join(tmpdir(), "skillhub-backup-test-"));
@@ -184,4 +186,56 @@ test("undo rejects tampered manifest paths outside the managed home", (t) => {
   assert.ok(isSymlink(outside), "outside link must remain untouched");
   const manifest = JSON.parse(readFileSync(session.manifestPath, "utf8"));
   assert.equal(manifest.undoneAt, null);
+});
+
+test("an edit made outside SkillHub ends the run instead of being swallowed", (t) => {
+  const tmp = mkdtempSync(join(tmpdir(), "skillhub-outside-edit-"));
+  t.after(() => rmSync(tmp, { recursive: true, force: true }));
+  const skill = join(tmp, ".agents", "skills", "alpha");
+  mkdirSync(skill, { recursive: true });
+  writeFileSync(join(skill, "SKILL.md"), "---\nname: alpha\ndescription: d\n---\n");
+  const beta = join(tmp, ".agents", "skills", "beta");
+  mkdirSync(beta, { recursive: true });
+  writeFileSync(join(beta, "SKILL.md"), "---\nname: beta\ndescription: d\n---\n");
+  const paths = getPaths(tmp);
+
+  setMetadataOverride("alpha", { zh: "AA" }, tmp);
+
+  // The README tells people to hand-write acceptedAliases into this file.
+  const edited = JSON.parse(readFileSync(paths.OVERRIDES_FILE, "utf-8"));
+  edited.acceptedAliases = { "connect-chrome": "open-gstack-browser" };
+  writeFileSync(paths.OVERRIDES_FILE, JSON.stringify(edited, null, 2));
+
+  setMetadataOverride("beta", { zh: "BB" }, tmp);
+
+  // Joining the earlier session would refresh its recorded digest, and undo —
+  // which refuses to overwrite a file changed after its backup — would stop
+  // seeing the edit and discard it while reporting success.
+  assert.equal(readdirSync(paths.BACKUPS_DIR).length, 2, "the outside edit must break the run");
+
+  const undone = undoLastBackup(paths.BACKUPS_DIR);
+  assert.equal(undone.ok, true, undone.error);
+  const after = JSON.parse(readFileSync(paths.OVERRIDES_FILE, "utf-8"));
+  assert.deepEqual(after.acceptedAliases, { "connect-chrome": "open-gstack-browser" },
+    "the hand-written entry survives");
+  assert.equal(after.zhOverrides.alpha, "AA", "the write before the edit stays");
+  assert.equal(after.zhOverrides.beta, undefined, "the write after it is reversed");
+});
+
+test("pruning only ever removes SkillHub's own sessions", (t) => {
+  const tmp = mkdtempSync(join(tmpdir(), "skillhub-prune-"));
+  t.after(() => rmSync(tmp, { recursive: true, force: true }));
+  const skill = join(tmp, ".agents", "skills", "alpha");
+  mkdirSync(skill, { recursive: true });
+  writeFileSync(join(skill, "SKILL.md"), "---\nname: alpha\ndescription: d\n---\n");
+  const paths = getPaths(tmp);
+
+  // Sorts before every ISO timestamp, and holds something that is not ours.
+  const foreign = join(paths.BACKUPS_DIR, "0-my-notes");
+  mkdirSync(foreign, { recursive: true });
+  writeFileSync(join(foreign, "notes.txt"), "keep me");
+
+  setMetadataOverride("alpha", { zh: "AA" }, tmp);
+  assert.equal(existsSync(join(foreign, "notes.txt")), true,
+    "a directory with no manifest is not a session and is never deleted");
 });

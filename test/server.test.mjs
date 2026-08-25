@@ -142,3 +142,30 @@ test("the dashboard is served with the headers that keep third-party text inert"
   assert.match(csp, /frame-ancestors 'none'/);
   assert.equal(response.headers.get("x-content-type-options"), "nosniff");
 });
+
+test("a request that will not declare its size is refused, not measured", async (t) => {
+  const home = makeHome(t);
+  const app = createApp(home);
+  const token = getOrCreateSessionToken(home);
+
+  // The size ceiling read content-length only, so a chunked request walked
+  // straight past it.
+  const response = await app.request("http://127.0.0.1:7777/api/refresh", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Transfer-Encoding": "chunked",
+      "X-SkillHub-Token": token,
+      Origin: "http://127.0.0.1:7777",
+    },
+    body: JSON.stringify({}),
+  });
+  assert.equal(response.status, 411);
+
+  // A POST that carries no body at all has neither header and still works.
+  const plain = await app.request("http://127.0.0.1:7777/api/refresh", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "X-SkillHub-Token": token, Origin: "http://127.0.0.1:7777" },
+  });
+  assert.equal(plain.status, 200);
+});

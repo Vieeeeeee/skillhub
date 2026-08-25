@@ -6,7 +6,7 @@ import {
   realpathSync,
 } from "node:fs";
 import { join, relative } from "node:path";
-import { getPaths } from "../paths.mjs";
+import { getPaths, getAgentDirs } from "../paths.mjs";
 import { buildSyncPlan } from "../sync.mjs";
 import { parseSkillMeta } from "../registry.mjs";
 
@@ -549,6 +549,12 @@ export function runDoctor(registry, customHome = null) {
     if (!byTriggerName.has(trigger)) byTriggerName.set(trigger, []);
     byTriggerName.get(trigger).push(name);
   }
+  // The prefix belongs to whichever Agent discovers by frontmatter name, and
+  // that comes from the configuration, not from a literal typed in here.
+  const nativeAgent = Object.values(getAgentDirs(customHome)).find((cfg) => cfg.type === "native");
+  const nativePrefix = nativeAgent?.triggerPrefix || "$";
+  const nativeLabel = nativeAgent?.name || "Codex";
+
   for (const [trigger, names] of byTriggerName) {
     if (names.length < 2) continue;
     // Two entries that resolve to the same directory are one Skill reached by
@@ -563,7 +569,7 @@ export function runDoctor(registry, customHome = null) {
         skill: name,
         path: skills[name].path,
         title: "触发名与另一个 Skill 撞车",
-        reason: `${names.join("、")} 的 frontmatter name 都是 "${trigger}"，在 Codex 里都是 $${trigger}`,
+        reason: `${names.join("、")} 的 frontmatter name 都是 "${trigger}"，在 ${nativeLabel} 里都是 ${nativePrefix}${trigger}`,
         recommendation: `给其中一个换个 name，让两边的触发命令各自唯一`,
         fixable: false,
         owned: !isThirdParty(skills[name]),

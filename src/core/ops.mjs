@@ -55,13 +55,19 @@ function assertWithinLength(value, limit, label) {
 }
 
 function saveOverridesWithBackup(session, overridesFile, overrides) {
+  // A session joined by a later write already recorded how this file looked
+  // before the run. Copying again would replace that with a mid-batch state,
+  // and undo would land somewhere inside the run instead of before it — even
+  // when the first write is the one that created the file, where the right
+  // reversal is to remove it again and no copy belongs in the session at all.
+  const alreadyRecorded = session.manifest.operations.some(
+    (op) => op.type === "write-file" && op.targetFile === overridesFile
+  );
   const existedBefore = existsSync(overridesFile);
   const backupFile = existedBefore ? "overrides.before.json" : null;
-  // A session joined by a later write already holds the pre-batch copy. Copying
-  // again here would overwrite it with a mid-batch state, and undo would land
-  // somewhere in the middle of the run instead of before it.
-  const backupPath = backupFile ? join(session.sessionDir, backupFile) : null;
-  if (backupPath && !existsSync(backupPath)) copyFileSync(overridesFile, backupPath);
+  if (!alreadyRecorded && backupFile) {
+    copyFileSync(overridesFile, join(session.sessionDir, backupFile));
+  }
   saveUserOverrides(overridesFile, overrides);
   recordFileWrite(session, {
     type: "write-file",

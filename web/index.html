@@ -389,6 +389,9 @@ function sanitizeUrl(url) {
 // load() and checkAppUpdate() start together on every page open, and both
 // wanted a token. Without holding on to the request in flight, each saw an
 // empty token and sent its own.
+// 这个名字在后端是 registry.mjs 的 UNCLASSIFIED_CATEGORY，两边必须一致。
+const UNCLASSIFIED = "其他 / 未分类";
+
 let tokenRequest = null;
 async function ensureToken() {
   if (sessionToken) return sessionToken;
@@ -546,7 +549,7 @@ function renderDash() {
   const git = vals.filter(s => s.type === "git" || s.type === "bundle-symlink").length;
   const issues = vals.filter(hasIssue).length;   // 占位，体检结果回来后由 syncIssueTile 覆盖
   const needZh = vals.filter(s => !s.zh).length;
-  const needCat = vals.filter(s => s.category === "其他 / 未分类").length;
+  const needCat = vals.filter(s => s.category === UNCLASSIFIED).length;
 
   // 每个 agent 一个格子会把首屏挤满，而这几个数字几乎不变。收成一个：
   // 有多少 skill 至少能被一个需要软链的 agent 读到。
@@ -744,7 +747,9 @@ function getFilteredSkills() {
   if (activeCategory === "__git__") entries = entries.filter(([,s]) => s.type === "git" || s.type === "bundle-symlink");
   else if (activeCategory === "__local__") entries = entries.filter(([,s]) => s.type === "local");
   else if (activeCategory === "__needs_zh__") entries = entries.filter(([,s]) => !s.zh);
-  else if (activeCategory === "__unclassified__") entries = entries.filter(([,s]) => s.category === "其他 / 未分类");
+  // 「未分类」不需要自己的伪分类：侧栏里本来就有这个分类项，用同一个值，
+  // 跳过去才有高亮，用户也看得出当前筛的是什么。
+  else if (activeCategory === UNCLASSIFIED) entries = entries.filter(([,s]) => s.category === UNCLASSIFIED);
   else if (activeCategory === "__issues__") entries = entries.filter(([,s]) => hasIssue(s));
   else if (activeCategory !== "__all__") entries = entries.filter(([,s]) => s.category === activeCategory);
   if (agentFilter) {
@@ -1173,8 +1178,10 @@ async function openTrash() {
     $$("[data-restore]").forEach(btn => btn.onclick = async () => {
       btn.disabled = true; btn.textContent = "恢复中…";
       try {
-        await api("/api/trash/restore", { method: "POST", body: JSON.stringify({ entry: btn.dataset.restore }) });
-        toast(`已恢复 ${r.restored}，链接需要重新同步`, "ok");
+        // `r` up there is the listing. Reading `restored` off it produced a
+        // toast that said "已恢复 undefined" after a restore that worked.
+        const restored = await api("/api/trash/restore", { method: "POST", body: JSON.stringify({ entry: btn.dataset.restore }) });
+        toast(`已恢复 ${restored.restored || btn.dataset.restore}，链接需要重新同步`, "ok");
         closeModal();
         await load();
       } catch (e) { toast(e.message, "error"); btn.disabled = false; }
@@ -1286,7 +1293,7 @@ function jumpToFiltered(category) {
 document.addEventListener("click", (e) => {
   const tile = e.target.closest("#tile-needzh, #tile-needcat");
   if (!tile) return;
-  jumpToFiltered(tile.id === "tile-needzh" ? "__needs_zh__" : "__unclassified__");
+  jumpToFiltered(tile.id === "tile-needzh" ? "__needs_zh__" : UNCLASSIFIED);
 });
 
 $("#search").oninput = renderTable;

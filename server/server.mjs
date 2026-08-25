@@ -83,8 +83,17 @@ export function createApp(customHome = null) {
   // back into memory on every scan.
   const MAX_BODY_BYTES = 64 * 1024;
   app.use("/api/*", async (c, next) => {
+    // A chunked request declares no length, so checking the header alone let an
+    // arbitrarily large body straight through the ceiling this middleware
+    // exists to impose. Nothing here needs streaming — every client is fetch()
+    // with a string body — so a request that refuses to say its size is
+    // refused rather than measured. A POST with no body at all has neither
+    // header and is unaffected.
+    if (c.req.header("transfer-encoding") !== undefined) {
+      return c.json({ ok: false, error: "Request body must declare Content-Length" }, 411);
+    }
     const declared = Number(c.req.header("content-length") || 0);
-    if (Number.isFinite(declared) && declared > MAX_BODY_BYTES) {
+    if (!Number.isFinite(declared) || declared > MAX_BODY_BYTES) {
       return c.json({ ok: false, error: `Request body is too large (limit ${MAX_BODY_BYTES} bytes)` }, 413);
     }
     await next();

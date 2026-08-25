@@ -15,6 +15,7 @@ import { createHash } from "node:crypto";
 import { basename, dirname, join, resolve } from "node:path";
 import { unlinkSafe, createLink, isSymlink } from "./link.mjs";
 import { getAgentDirs, getPaths } from "./paths.mjs";
+import { withOverridesLock } from "./registry.mjs";
 import { assertSafePath, assertSafeRealPath, isInsideRoot } from "./guard.mjs";
 
 let atomicWriteCounter = 0;
@@ -89,12 +90,31 @@ function enrichOperation(operation) {
 // newest. Keep a deep-but-bounded history.
 const MAX_SESSIONS = 100;
 
+// A session is a directory holding a manifest. Anything else under backups/
+// belongs to whoever put it there — deleting it because it sorted early would
+// be this tool destroying a file it does not own.
+function listSessionDirs(backupsDir) {
+  return readdirSync(backupsDir, { withFileTypes: true })
+    .filter((e) => e.isDirectory() && existsSync(join(backupsDir, e.name, "manifest.json")))
+    .map((e) => e.name)
+    .sort(compareSessionIds);
+}
+
+// Ids are an ISO timestamp plus, on a collision, `-N`. Plain string order puts
+// `...-10` before `...-2`, so the newest is not always last.
+function compareSessionIds(a, b) {
+  const split = (id) => {
+    const m = id.match(/^(.*?Z)(?:-(\d+))?$/);
+    return m ? [m[1], Number(m[2] || 0)] : [id, 0];
+  };
+  const [baseA, nA] = split(a);
+  const [baseB, nB] = split(b);
+  return baseA === baseB ? nA - nB : baseA < baseB ? -1 : 1;
+}
+
 function pruneOldSessions(backupsDir) {
   try {
-    const dirs = readdirSync(backupsDir, { withFileTypes: true })
-      .filter((e) => e.isDirectory())
-      .map((e) => e.name)
-      .sort();
+    const dirs = listSessionDirs(backupsDir);
     for (const name of dirs.slice(0, Math.max(0, dirs.length - MAX_SESSIONS))) {
       const dir = join(backupsDir, name);
       assertSafePath(dir, [backupsDir]);
@@ -167,19 +187,26 @@ const COALESCE_WINDOW_MS = 30 * 60 * 1000;
 function findCoalescableSession(backupsDir, actionPrefix) {
   if (!existsSync(backupsDir)) return null;
   try {
-    const newest = readdirSync(backupsDir, { withFileTypes: true })
-      .filter((e) => e.isDirectory())
-      .map((e) => e.name)
-      .sort()
-      .at(-1);
+    const newest = listSessionDirs(backupsDir).at(-1);
     if (!newest) return null;
     const sessionDir = join(backupsDir, newest);
     const manifestPath = join(sessionDir, "manifest.json");
-    if (!existsSync(manifestPath)) return null;
     const manifest = JSON.parse(readFileSync(manifestPath, "utf-8"));
     if (manifest.undoneAt) return null;
     if (!String(manifest.action || "").startsWith(actionPrefix)) return null;
-    if (Date.now() - new Date(manifest.createdAt).getTime() > COALESCE_WINDOW_MS) return null;
+    const elapsed = Date.now() - new Date(manifest.createdAt).getTime();
+    // A manifest dated in the future means the clock moved. Treat it as
+    // unusable rather than letting a negative number sail through the window.
+    if (!(elapsed >= 0) || elapsed > COALESCE_WINDOW_MS) return null;
+
+    // Someone edited the file outside SkillHub since this session last wrote
+    // it. Joining the session would refresh the recorded digest, and undo —
+    // which refuses to overwrite a file changed after its backup — would stop
+    // seeing that anything had changed and quietly discard their edit.
+    for (const op of manifest.operations || []) {
+      if (op.type !== "write-file" || !op.modifiedDigest) continue;
+      if (fileDigest(op.targetFile) !== op.modifiedDigest) return null;
+    }
     return { sessionDir, manifestPath, manifest };
   } catch {
     return null;
@@ -225,7 +252,12 @@ export function listBackups(backupsDir) {
     if (existsSync(manifestPath)) {
       try {
         const manifest = JSON.parse(readFileSync(manifestPath, "utf-8"));
-        backups.push({ id: entry.name, dir: join(backupsDir, entry.name), manifest });
+        backups.push({
+          id: entry.name,
+          dir: join(backupsDir, entry.name),
+          batchedWrites: manifest.batchedWrites || 1,
+          manifest,
+        });
       } catch {}
     }
   }
@@ -355,7 +387,20 @@ function reverseOperation(op, backupDir, home, allowedRoots) {
   throw new Error(`Unsupported backup operation: ${op.type}`);
 }
 
+// The three writers all take the override-file lock; the one that puts the
+// file back did not, so a dashboard undo and a CLI `describe` could still land
+// on top of each other. Held across the whole reversal, including the choice of
+// which session is newest.
 export function undoLastBackup(backupsDir) {
+  const skillhubRoot = dirname(backupsDir);
+  const overridesFile = join(
+    basename(skillhubRoot) === ".skillhub" ? skillhubRoot : backupsDir,
+    "overrides.json"
+  );
+  return withOverridesLock(overridesFile, () => undoLastBackupLocked(backupsDir));
+}
+
+function undoLastBackupLocked(backupsDir) {
   const backups = listBackups(backupsDir);
   const target = backups.find((backup) =>
     !backup.manifest.undoneAt && backup.manifest.operations.length > 0
@@ -422,5 +467,5 @@ export function undoLastBackup(backupsDir) {
   delete manifest.undoError;
   atomicWriteJson(manifestPath, manifest);
 
-  return { ok: true, sessionId: target.id, logs };
+  return { ok: true, sessionId: target.id, batchedWrites: manifest.batchedWrites || 1, logs };
 }
