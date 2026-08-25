@@ -51,11 +51,12 @@ function normRepo(r) {
   };
 }
 
+// Matching on the bare repo name was wrong in the direction that matters: one
+// local directory called `skills` marked anthropics/skills, openai/skills and
+// cloudflare/skills all as installed. Only a full owner/repo match counts.
 function installedRepoSet(registry) {
   const repos = new Set();
-  const names = new Set();
-  for (const [name, s] of Object.entries(registry.skills || {})) {
-    names.add(name.toLowerCase());
+  for (const s of Object.values(registry.skills || {})) {
     for (const src of [s.origin, s.verifiedSource, s.inferredSource]) {
       if (!src) continue;
       const m =
@@ -64,7 +65,7 @@ function installedRepoSet(registry) {
       if (m) repos.add(m[1].toLowerCase());
     }
   }
-  return { repos, names };
+  return { repos };
 }
 
 export async function fetchHot(customHome = null) {
@@ -116,7 +117,7 @@ export async function fetchHot(customHome = null) {
     } catch {}
   }
 
-  const { repos: installedRepos, names: installedNames } = installedRepoSet(registry);
+  const { repos: installedRepos } = installedRepoSet(registry);
   const all = [...byRepo.values()].map(normRepo).map((r) => ({
     ...r,
     category: classifyRepo(r),
@@ -124,9 +125,7 @@ export async function fetchHot(customHome = null) {
     installNote: SEED_REPOS.includes(r.repo.toLowerCase())
       ? "Multi-Skill repository: browse and install an individual Skill manually"
       : "",
-    installed:
-      installedRepos.has(r.repo.toLowerCase()) ||
-      installedNames.has(r.repo.split("/")[1]?.toLowerCase()),
+    installed: installedRepos.has(r.repo.toLowerCase()),
   }));
 
   const categories = {};
@@ -160,16 +159,14 @@ export async function getHot({ force = false, customHome = null } = {}) {
             registry = JSON.parse(readFileSync(paths.REGISTRY_FILE, "utf-8"));
           } catch {}
         }
-        const { repos, names } = installedRepoSet(registry);
+        const { repos } = installedRepoSet(registry);
         for (const list of Object.values(cached.categories || {})) {
           for (const r of list) {
             r.installable = !SEED_REPOS.includes(r.repo.toLowerCase());
             r.installNote = r.installable
               ? ""
               : "Multi-Skill repository: browse and install an individual Skill manually";
-            r.installed =
-              repos.has(r.repo.toLowerCase()) ||
-              names.has(r.repo.split("/")[1]?.toLowerCase());
+            r.installed = repos.has(r.repo.toLowerCase());
           }
         }
         return { ...cached, fromCache: true };

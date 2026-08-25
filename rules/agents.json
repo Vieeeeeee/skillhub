@@ -4,7 +4,6 @@
     "path": ".claude/skills",
     "windowsPath": ".claude/skills",
     "type": "symlink",
-    "relPrefix": "../../.agents/skills/",
     "triggerPrefix": "/",
     "status": "verified",
     "notes": "用户级 ~/.claude/skills，需软链连接至 SSOT"
@@ -14,7 +13,6 @@
     "path": ".agents/skills",
     "windowsPath": ".agents/skills",
     "type": "native",
-    "relPrefix": "",
     "triggerPrefix": "$",
     "status": "verified",
     "secondaryPath": ".codex/skills",
@@ -25,7 +23,6 @@
     "path": ".gemini/config/skills",
     "windowsPath": ".gemini/config/skills",
     "type": "symlink",
-    "relPrefix": "../../../.agents/skills/",
     "triggerPrefix": "/",
     "status": "verified",
     "notes": "用户级 ~/.gemini/config/skills，需软链连接至 SSOT"
@@ -35,7 +32,6 @@
     "path": ".hermes/skills/claude-skills",
     "windowsPath": ".hermes/skills/claude-skills",
     "type": "symlink",
-    "relPrefix": "../../../.agents/skills/",
     "triggerPrefix": "/",
     "status": "verified",
     "notes": "用户级 ~/.hermes/skills/claude-skills，需软链连接至 SSOT"
@@ -45,7 +41,6 @@
     "path": ".cursor/skills",
     "windowsPath": ".cursor/skills",
     "type": "symlink",
-    "relPrefix": "../../.agents/skills/",
     "triggerPrefix": "/",
     "status": "experimental",
     "notes": "待调研与测试支持"

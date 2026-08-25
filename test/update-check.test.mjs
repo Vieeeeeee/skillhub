@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { mkdtempSync, rmSync, existsSync, writeFileSync, mkdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { checkSelfUpdate, getCurrentVersion, getUpdateCommand, getPackageName } from "../src/core/update-check.mjs";
+import { checkSelfUpdate, getCurrentVersion, getUpdateCommand, getPackageName, isNewer } from "../src/core/update-check.mjs";
 
 test("getCurrentVersion returns package version", () => {
   const ver = getCurrentVersion();
@@ -58,4 +58,14 @@ test("checkSelfUpdate reads from cache and calculates hasUpdate correctly", asyn
 test("the update command installs the published package, not a git checkout", () => {
   assert.equal(getUpdateCommand(), `npm install --global ${getPackageName()}@latest`);
   assert.equal(getPackageName(), "@wsiwsii/skillhub");
+});
+
+test("a prerelease version still compares", () => {
+  // Number("0-beta") is NaN, and every comparison against NaN is false, so a
+  // prerelease build answered "no newer version" no matter what was published.
+  assert.equal(isNewer("0.4.0-beta.1", "0.4.1"), true);
+  assert.equal(isNewer("0.4.0-beta.1", "0.4.0"), false, "the release itself is not newer than its prerelease");
+  assert.equal(isNewer("0.4.0", "0.4.0-beta.1"), false);
+  assert.equal(isNewer("0.4.0", "1.0.0"), true);
+  assert.equal(isNewer("v0.4.0", "0.4.0"), false, "a leading v is not a version difference");
 });

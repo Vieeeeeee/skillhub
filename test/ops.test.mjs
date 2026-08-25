@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, mkdirSync, readFileSync, writeFileSync, rmSync, existsSync } from "node:fs";
+import { mkdtempSync, mkdirSync, readdirSync, readFileSync, writeFileSync, rmSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { execFileSync, execFile } from "node:child_process";
@@ -299,4 +299,52 @@ test("parallel metadata writes keep every edit", async (t) => {
 
   const written = JSON.parse(readFileSync(join(tmp, ".skillhub", "overrides.json"), "utf-8")).zhOverrides || {};
   assert.deepEqual(Object.keys(written).sort(), [...names].sort());
+});
+
+function makeSkillHome(t, names) {
+  const tmp = mkdtempSync(join(tmpdir(), "skillhub-batch-test-"));
+  t.after(() => rmSync(tmp, { recursive: true, force: true }));
+  for (const name of names) {
+    const dir = join(tmp, ".agents", "skills", name);
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, "SKILL.md"), `---\nname: ${name}\ndescription: english description\n---\n`);
+  }
+  return tmp;
+}
+
+test("a run of metadata writes shares one backup session, and one undo covers the run", (t) => {
+  const tmp = makeSkillHome(t, ["alpha", "beta", "gamma"]);
+  const paths = getPaths(tmp);
+
+  setMetadataOverride("alpha", { zh: "第一条" }, tmp);
+  setMetadataOverride("beta", { zh: "第二条" }, tmp);
+  setMetadataOverride("gamma", { category: "研究" }, tmp);
+
+  // Eighty-four blurbs used to leave eighty-four session directories, and undo
+  // walked them back one at a time.
+  const sessions = readdirSync(paths.BACKUPS_DIR);
+  assert.equal(sessions.length, 1, `expected a single session, got ${sessions.join(", ")}`);
+
+  const overrides = JSON.parse(readFileSync(paths.OVERRIDES_FILE, "utf-8"));
+  assert.equal(overrides.zhOverrides.beta, "第二条");
+
+  const undone = undoLastBackup(paths.BACKUPS_DIR);
+  assert.equal(undone.ok, true, undone.error);
+  assert.equal(existsSync(paths.OVERRIDES_FILE), false, "the file did not exist before the run");
+});
+
+test("a different kind of write ends the run instead of joining it", (t) => {
+  const tmp = makeSkillHome(t, ["alpha", "beta"]);
+  const paths = getPaths(tmp);
+
+  setMetadataOverride("alpha", { zh: "基线" }, tmp);
+  toggleAgent("alpha", "claude", true, tmp);
+  setMetadataOverride("beta", { zh: "开关之后" }, tmp);
+
+  assert.equal(readdirSync(paths.BACKUPS_DIR).length, 3, "joining across kinds would break undo ordering");
+
+  undoLastBackup(paths.BACKUPS_DIR);
+  const after = JSON.parse(readFileSync(paths.OVERRIDES_FILE, "utf-8"));
+  assert.equal(after.zhOverrides.beta, undefined, "only the newest write is reversed");
+  assert.equal(after.zhOverrides.alpha, "基线", "the earlier run is untouched");
 });

@@ -61,6 +61,20 @@ export function createApp(customHome = null) {
     return { ...registry, agentMeta };
   }
 
+  // The page is entirely self-contained — no CDN, no remote font, no external
+  // image — so it can be locked down completely. A good part of what it renders
+  // comes out of third-party SKILL.md files, and until now escapeHtml in the
+  // browser was the only thing standing between that text and the DOM.
+  app.use("/*", async (c, next) => {
+    await next();
+    c.header(
+      "Content-Security-Policy",
+      "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
+    );
+    c.header("X-Content-Type-Options", "nosniff");
+    c.header("Referrer-Policy", "no-referrer");
+  });
+
   // Security Middleware
   app.use("/api/*", createSecurityMiddleware(customHome));
 
@@ -88,6 +102,14 @@ export function createApp(customHome = null) {
         if (entry.name.startsWith(".") || entry.name.startsWith("_")) continue;
         const skillMd = join(paths.SSOT, entry.name, "SKILL.md");
         if (existsSync(skillMd) && statSync(skillMd).mtimeMs > registryMtime) return true;
+      }
+      // A link made outside SkillHub — `ln -s` in a terminal, or an Agent
+      // writing its own directory — changes nothing in the SSOT, so the
+      // "which Agents can see it" columns stayed on their old values until
+      // someone happened to hit 重新扫描.
+      for (const cfg of Object.values(getAgentDirs(customHome))) {
+        if (!cfg.absPath || !existsSync(cfg.absPath)) continue;
+        if (statSync(cfg.absPath).mtimeMs > registryMtime) return true;
       }
       return false;
     } catch {
@@ -234,7 +256,6 @@ export function createApp(customHome = null) {
     const name = c.req.param("name");
     const url = new URL(c.req.url);
     const wholeBundle = url.searchParams.get("wholeBundle") === "true";
-    const deleteData = url.searchParams.get("deleteData") === "true";
 
     try {
       let result;
@@ -246,7 +267,7 @@ export function createApp(customHome = null) {
         }
         result = ops.removeBundle(bundle, customHome);
       } else {
-        result = ops.removeSkill(name, { deleteData }, customHome);
+        result = ops.removeSkill(name, {}, customHome);
       }
       buildRegistry(customHome);
       return c.json({ ok: true, ...result });
@@ -369,10 +390,10 @@ export function createApp(customHome = null) {
         if (reg.skills[name]?.path) dir = reg.skills[name].path;
       }
       const skillMd = join(dir, "SKILL.md");
-      if (!existsSync(skillMd)) return c.json({ error: "no SKILL.md" }, 404);
-      return c.json({ content: readFileSync(skillMd, "utf-8") });
+      if (!existsSync(skillMd)) return c.json({ ok: false, error: "no SKILL.md" }, 404);
+      return c.json({ ok: true, content: readFileSync(skillMd, "utf-8") });
     } catch (e) {
-      return c.json({ error: e.message }, 400);
+      return c.json({ ok: false, error: e.message }, 400);
     }
   });
 

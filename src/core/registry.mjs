@@ -31,7 +31,7 @@ export function loadKnownSources() {
       return _knownSourcesCache;
     } catch {}
   }
-  return { verifiedSources: {}, inferredSources: {}, upstreamPaths: {}, acceptedAliases: {} };
+  return { verifiedSources: {}, inferredSources: {}, acceptedAliases: {} };
 }
 
 export function loadUserOverrides(overridesFile) {
@@ -134,6 +134,7 @@ export function parseSkillMeta(skillDir) {
   const skillMdPath = join(skillDir, "SKILL.md");
   const result = {
     hasSkillMd: false,
+    tooLarge: false,
     hasName: false,
     hasDescription: false,
     fmName: "",
@@ -149,7 +150,11 @@ export function parseSkillMeta(skillDir) {
   result.hasSkillMd = true;
   let text = "";
   try {
+    // Bailing out silently left hasSkillMd true with an empty name and
+    // description, so a perfectly good but very large SKILL.md collected two
+    // Tier A findings for fields that were never actually read.
     if (statSync(skillMdPath).size > 1024 * 1024) {
+      result.tooLarge = true;
       return result;
     }
     text = readFileSync(skillMdPath, "utf-8");
@@ -281,7 +286,6 @@ export function buildRegistry(customHome = null) {
 
   const verifiedSources = { ...known.verifiedSources, ...(overrides.verifiedSources || {}) };
   const inferredSources = { ...known.inferredSources, ...(overrides.inferredSources || {}) };
-  const upstreamPaths = { ...known.upstreamPaths, ...(overrides.upstreamPaths || {}) };
   const acceptedAliases = { ...known.acceptedAliases, ...(overrides.acceptedAliases || {}) };
   const localCanonical = new Set([...(overrides.localCanonical || [])]);
   const zhOverrides = overrides.zhOverrides || {};
@@ -365,7 +369,6 @@ export function buildRegistry(customHome = null) {
     const meta = parseSkillMeta(entryPath);
     const desc = meta.description;
     const fmName = meta.fmName;
-    const fmVersion = meta.version;
 
     // The override file is the only store for a hand-written blurb, so it is
     // also the only thing consulted here. Carrying the previous registry value
@@ -416,11 +419,9 @@ export function buildRegistry(customHome = null) {
       commit,
       fmName,
       nameMismatch: hasNameMismatch,
-      aliasOf: acceptedAliases[name] === fmName ? acceptedAliases[name] : "",
       managed: typeof managedSkills[name] === "string" ? managedSkills[name] : "",
       verifiedSource: verifiedSources[name] || "",
       inferredSource: inferredSources[name] || "",
-      upstreamPath: upstreamPaths[name] || "",
       localCanonical: localCanonical.has(name),
       outsideManagedHome,
       // No hasUpdate / latestUpstream / lastChecked here: nothing ever queried
@@ -428,12 +429,17 @@ export function buildRegistry(customHome = null) {
       // date" from a field that was only ever copied forward as false. SkillHub
       // does not check for upstream versions; `update` performs a fast-forward
       // pull on demand and that is the whole of it.
-      installedVersion: fmVersion,
-      category: classifySkill(name, desc, categoryOverrides),
+      // The blurb the user wrote by hand is the most accurate description this
+      // Skill has. Leaving it out of the haystack meant a full round of writing
+      // blurbs — one of the two main jobs here — did nothing at all for
+      // categorisation, the other one. The rules already carry Chinese keywords
+      // and match CJK by substring, so this needs no new machinery.
+      category: classifySkill(name, [desc, zh].filter(Boolean).join(" "), categoryOverrides),
       description: desc,
       zh,
       notes: notesOverrides[name] ?? prev.notes ?? "",
       hasSkillMd: meta.hasSkillMd,
+      tooLarge: meta.tooLarge,
       hasName: meta.hasName,
       hasDescription: meta.hasDescription,
       lineCount: meta.lineCount,

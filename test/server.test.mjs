@@ -110,3 +110,35 @@ test("update-all attempts a shared bundle only once and reports failure counts",
   assert.equal(data.failed, 1);
   assert.equal(data.results[0].bundle, "fixture-bundle");
 });
+
+test("a link made outside SkillHub shows up without a manual rescan", async (t) => {
+  const home = makeHome(t);
+  const skillDir = join(home, ".agents", "skills", "demo");
+  mkdirSync(skillDir, { recursive: true });
+  writeFileSync(join(skillDir, "SKILL.md"), "---\nname: demo\ndescription: fixture\n---\n");
+  const claudeDir = join(home, ".claude", "skills");
+  mkdirSync(claudeDir, { recursive: true });
+  const app = createApp(home);
+
+  const first = await app.request("http://127.0.0.1:7777/api/registry");
+  assert.equal((await first.json()).skills.demo.agents.claude, false);
+
+  // `ln -s` in a terminal, or another tool writing its own directory. Staleness
+  // was measured on the SSOT alone, so the "which Agents can see it" columns
+  // stayed wrong until someone happened to press 重新扫描.
+  symlinkSync(skillDir, join(claudeDir, "demo"), "dir");
+  const future = new Date(Date.now() + 2_000);
+  utimesSync(claudeDir, future, future);
+
+  const second = await app.request("http://127.0.0.1:7777/api/registry");
+  assert.equal((await second.json()).skills.demo.agents.claude, true);
+});
+
+test("the dashboard is served with the headers that keep third-party text inert", async (t) => {
+  const home = makeHome(t);
+  const response = await createApp(home).request("http://127.0.0.1:7777/");
+  const csp = response.headers.get("content-security-policy");
+  assert.match(csp, /default-src 'self'/);
+  assert.match(csp, /frame-ancestors 'none'/);
+  assert.equal(response.headers.get("x-content-type-options"), "nosniff");
+});

@@ -1,6 +1,7 @@
 import {
   existsSync,
   mkdirSync,
+  rmSync,
   writeFileSync,
   readFileSync,
   readdirSync,
@@ -83,12 +84,48 @@ function enrichOperation(operation) {
   return operation;
 }
 
-export function createBackupSession(backupsDir, action = "operation") {
+// Sessions hold manifests and copies of overrides.json — small, but the
+// directory only ever grew, and every `undo` reads all of them to find the
+// newest. Keep a deep-but-bounded history.
+const MAX_SESSIONS = 100;
+
+function pruneOldSessions(backupsDir) {
+  try {
+    const dirs = readdirSync(backupsDir, { withFileTypes: true })
+      .filter((e) => e.isDirectory())
+      .map((e) => e.name)
+      .sort();
+    for (const name of dirs.slice(0, Math.max(0, dirs.length - MAX_SESSIONS))) {
+      const dir = join(backupsDir, name);
+      assertSafePath(dir, [backupsDir]);
+      rmSync(dir, { recursive: true, force: true });
+    }
+  } catch {}
+}
+
+/**
+ * `coalesceWith` lets a run of same-kind writes share one session. Writing a
+ * Chinese blurb touches exactly one JSON file, so a batch of eighty-four of
+ * them used to leave eighty-four session directories that `undo` could only
+ * walk back one at a time. Sharing a session means one undo returns the file to
+ * how it looked before the batch started.
+ */
+export function createBackupSession(backupsDir, action = "operation", { coalesceWith = null } = {}) {
   const skillhubDir = dirname(backupsDir);
   const home = basename(skillhubDir) === ".skillhub" ? dirname(skillhubDir) : dirname(backupsDir);
   assertSafeRealPath(backupsDir, [home], { followFinalSymlink: true });
   mkdirSync(backupsDir, { recursive: true });
   assertSafeRealPath(backupsDir, [home], { followFinalSymlink: true });
+
+  if (coalesceWith) {
+    const existing = findCoalescableSession(backupsDir, coalesceWith);
+    if (existing) {
+      existing.manifest.batchedWrites = (existing.manifest.batchedWrites || 1) + 1;
+      atomicWriteJson(existing.manifestPath, existing.manifest);
+      return existing;
+    }
+  }
+  pruneOldSessions(backupsDir);
 
   const createdAt = new Date().toISOString();
   const baseId = createdAt.replace(/[:.]/g, "-");
@@ -120,6 +157,49 @@ export function createBackupSession(backupsDir, action = "operation") {
   atomicWriteJson(manifestPath, manifest);
 
   return { sessionDir, manifestPath, manifest };
+}
+
+// Only the newest session may be joined, and only while it is still the newest:
+// appending to an older one would put operations out of order and break the
+// last-in-first-out contract `undo` relies on.
+const COALESCE_WINDOW_MS = 30 * 60 * 1000;
+
+function findCoalescableSession(backupsDir, actionPrefix) {
+  if (!existsSync(backupsDir)) return null;
+  try {
+    const newest = readdirSync(backupsDir, { withFileTypes: true })
+      .filter((e) => e.isDirectory())
+      .map((e) => e.name)
+      .sort()
+      .at(-1);
+    if (!newest) return null;
+    const sessionDir = join(backupsDir, newest);
+    const manifestPath = join(sessionDir, "manifest.json");
+    if (!existsSync(manifestPath)) return null;
+    const manifest = JSON.parse(readFileSync(manifestPath, "utf-8"));
+    if (manifest.undoneAt) return null;
+    if (!String(manifest.action || "").startsWith(actionPrefix)) return null;
+    if (Date.now() - new Date(manifest.createdAt).getTime() > COALESCE_WINDOW_MS) return null;
+    return { sessionDir, manifestPath, manifest };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * A repeated write to the same file inside one session updates the operation
+ * already recorded for it rather than stacking another. The saved copy stays
+ * the pre-batch state; the digest has to move to the current state, or undo
+ * would refuse the restore as "changed after the backup".
+ */
+export function recordFileWrite(session, operation) {
+  const existing = session.manifest.operations.find(
+    (op) => op.type === "write-file" && op.targetFile === operation.targetFile
+  );
+  if (!existing) return recordOperation(session, operation);
+  existing.modifiedDigest = fileDigest(operation.targetFile);
+  existing.timestamp = new Date().toISOString();
+  atomicWriteJson(session.manifestPath, session.manifest);
 }
 
 export function recordOperation(session, operation) {

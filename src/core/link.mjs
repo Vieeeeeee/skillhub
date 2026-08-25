@@ -6,6 +6,8 @@ import {
   unlinkSync,
   mkdirSync,
   renameSync,
+  cpSync,
+  rmSync,
 } from "node:fs";
 import { dirname, relative, resolve, join } from "node:path";
 import { isWindows } from "./paths.mjs";
@@ -111,6 +113,16 @@ export function moveToTrash(sourcePath, trashDir) {
   const destName = `${base}.${timestamp}`;
   const destPath = join(trashDir, destName);
 
-  renameSync(sourcePath, destPath);
+  try {
+    renameSync(sourcePath, destPath);
+  } catch (error) {
+    // rename cannot cross a filesystem. If ~/.agents/skills sits on an external
+    // volume or a different mount, uninstalling failed with EXDEV — invisible
+    // on a single-disk Mac, and exactly the shape of problem that only shows up
+    // on someone else's machine.
+    if (error.code !== "EXDEV") throw error;
+    cpSync(sourcePath, destPath, { recursive: true, verbatimSymlinks: true });
+    rmSync(sourcePath, { recursive: true, force: true });
+  }
   return { ok: true, trashed: sourcePath, destination: destPath, entry: destName };
 }

@@ -14,7 +14,7 @@ import { execFileSync } from "node:child_process";
 import { getPaths, getAgentDirs } from "./paths.mjs";
 import { assertSafeName, assertSafeRealPath, isInsideRoot } from "./guard.mjs";
 import { createLink, unlinkSafe, isSymlink, readLinkSafe, moveToTrash } from "./link.mjs";
-import { createBackupSession, recordOperation } from "./backup.mjs";
+import { createBackupSession, recordOperation, recordFileWrite } from "./backup.mjs";
 import {
   loadUserOverrides,
   parseSkillMeta,
@@ -57,9 +57,13 @@ function assertWithinLength(value, limit, label) {
 function saveOverridesWithBackup(session, overridesFile, overrides) {
   const existedBefore = existsSync(overridesFile);
   const backupFile = existedBefore ? "overrides.before.json" : null;
-  if (backupFile) copyFileSync(overridesFile, join(session.sessionDir, backupFile));
+  // A session joined by a later write already holds the pre-batch copy. Copying
+  // again here would overwrite it with a mid-batch state, and undo would land
+  // somewhere in the middle of the run instead of before it.
+  const backupPath = backupFile ? join(session.sessionDir, backupFile) : null;
+  if (backupPath && !existsSync(backupPath)) copyFileSync(overridesFile, backupPath);
   saveUserOverrides(overridesFile, overrides);
-  recordOperation(session, {
+  recordFileWrite(session, {
     type: "write-file",
     targetFile: overridesFile,
     existedBefore,
@@ -190,7 +194,11 @@ export function setMetadataOverride(skillName, { zh, notes, category }, customHo
 
   return withOverridesLock(paths.OVERRIDES_FILE, () => {
     const overrides = loadUserOverrides(paths.OVERRIDES_FILE);
-    const session = createBackupSession(paths.BACKUPS_DIR, `metadata-${skillName}`);
+    // Writing a blurb touches one JSON file and nothing else, so a run of them
+    // shares one session: one undo puts the file back to before the run.
+    const session = createBackupSession(paths.BACKUPS_DIR, `metadata-${skillName}`, {
+      coalesceWith: "metadata-",
+    });
 
     if (zh !== undefined) {
       overrides.zhOverrides ||= {};
@@ -402,7 +410,10 @@ export function resolveUpdateTarget(skillPath, paths) {
   return join(paths.REPOS, bundle);
 }
 
-export function removeSkill(skillName, { deleteData = false } = {}, customHome = null) {
+// Uninstalling always goes through the trash. There used to be a `deleteData`
+// option threaded all the way from a query parameter to here and then never
+// read, which read as if a hard-delete path existed somewhere.
+export function removeSkill(skillName, options = {}, customHome = null) {
   assertSafeName(skillName, "skill name");
   const paths = getPaths(customHome);
   const agentDirs = getAgentDirs(customHome);

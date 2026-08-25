@@ -30,10 +30,29 @@ export function getUpdateCommand() {
   return `npm install --global ${getPackageName()}@latest`;
 }
 
+// A prerelease tag has to come off before the split: Number("0-beta") is NaN,
+// and every comparison against NaN is false, so `0.4.0-beta.1` silently
+// answered "no newer version" no matter what it was compared with.
+function versionParts(v) {
+  return String(v || "")
+    .replace(/^v/, "")
+    .split("-")[0]
+    .split(".")
+    .map((part) => {
+      const n = Number(part);
+      return Number.isFinite(n) ? n : 0;
+    });
+}
+
+/** True when `candidate` is a higher version than `current`. */
+export function isNewer(current, candidate) {
+  return compareVersions(current, candidate) === 1;
+}
+
 function compareVersions(v1, v2) {
   // Returns 1 if v2 > v1, -1 if v1 > v2, 0 if equal
-  const p1 = (v1 || "").replace(/^v/, "").split(".").map(Number);
-  const p2 = (v2 || "").replace(/^v/, "").split(".").map(Number);
+  const p1 = versionParts(v1);
+  const p2 = versionParts(v2);
 
   for (let i = 0; i < Math.max(p1.length, p2.length); i++) {
     const num1 = p1[i] || 0;

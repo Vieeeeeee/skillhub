@@ -217,6 +217,24 @@ function inspectSkill(name, s, issues, location = "") {
   if (s?.broken) return;
 
   const found = [];
+
+    // Too large to parse. Reported once, and the two frontmatter rules below
+    // are held back: those fields were never read, so calling them missing is a
+    // guess wearing the report's highest severity.
+    const parsedFrontmatter = !s.tooLarge;
+    if (s.hasSkillMd && s.tooLarge) {
+      found.push({
+        id: "skill-md-too-large",
+        tier: "B",
+        skill: name,
+        path: s.path,
+        title: "SKILL.md 超过 1MB，未解析",
+        reason: "文件大于解析上限，name 和 description 都没有读取",
+        recommendation: "把正文拆进 references/，SKILL.md 只留入口说明",
+        fixable: false,
+      });
+    }
+
     // Missing SKILL.md
     if (!s.hasSkillMd) {
       found.push({
@@ -232,7 +250,7 @@ function inspectSkill(name, s, issues, location = "") {
     }
 
     // Missing Name
-    if (!s.hasName) {
+    if (parsedFrontmatter && !s.hasName) {
       found.push({
         id: "missing-name",
         tier: "A",
@@ -246,7 +264,7 @@ function inspectSkill(name, s, issues, location = "") {
     }
 
     // Missing Description
-    if (!s.hasDescription) {
+    if (parsedFrontmatter && !s.hasDescription) {
       found.push({
         id: "missing-description",
         tier: "A",

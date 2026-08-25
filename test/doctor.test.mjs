@@ -246,3 +246,24 @@ test("executable scripts are counted but kept out of the default list", (t) => {
   assert.match(found.title, /2 个可执行脚本/);
   assert.equal(isDefaultReportItem(found), false, "it is context, not a decision to make");
 });
+
+test("a SKILL.md too large to parse is reported as that, not as missing fields", (t) => {
+  const tmp = mkdtempSync(join(tmpdir(), "skillhub-doctor-big-"));
+  t.after(() => rmSync(tmp, { recursive: true, force: true }));
+
+  const dir = join(tmp, ".agents", "skills", "huge-skill");
+  mkdirSync(dir, { recursive: true });
+  // Valid frontmatter, just past the parse ceiling. The parser bails out before
+  // reading it, and the report used to turn that into two Tier A findings about
+  // fields that are sitting right there in the file.
+  writeFileSync(
+    join(dir, "SKILL.md"),
+    `---\nname: huge-skill\ndescription: a real description\n---\n${"x".repeat(1024 * 1024 + 10)}\n`
+  );
+
+  const issues = runDoctor(buildRegistry(tmp), tmp).filter((i) => i.skill === "huge-skill");
+  assert.ok(issues.some((i) => i.id === "skill-md-too-large"));
+  assert.ok(!issues.some((i) => i.id === "missing-name"), "the name was never read, so it cannot be called missing");
+  assert.ok(!issues.some((i) => i.id === "missing-description"));
+  assert.ok(!issues.some((i) => i.tier === "A"), "nothing here is a Tier A problem");
+});

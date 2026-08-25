@@ -27,6 +27,14 @@ const IGNORE_NAMES = new Set([
   ".DS_Store",
 ]);
 
+// Codex reads the SSOT natively and also scans its own ~/.codex/skills, so a
+// link sitting in there is redundant. Where that second directory lives is
+// configuration (agents.json → secondaryPath), and this is the one place that
+// answer comes from.
+function codexSecondaryDir(paths, agentDirs) {
+  return agentDirs.codex?.secondaryAbsPath || join(paths.HOME, ".codex", "skills");
+}
+
 export function listDirectoryEntries(dirPath) {
   if (!existsSync(dirPath)) return [];
   try {
@@ -185,7 +193,10 @@ export function buildSyncPlan(customHome = null, { allowHarvest = false } = {}) 
   }
 
   // 3. Check Codex redundant symlinks
-  const codexSkillsDir = join(paths.HOME, ".codex", "skills");
+  // agents.json carries this as secondaryPath and paths.mjs resolves it; both
+  // sites here used to rebuild it by hand, so editing the config changed
+  // nothing and gave no sign that it hadn't.
+  const codexSkillsDir = codexSecondaryDir(paths, agentDirs);
   if (existsSync(codexSkillsDir)) {
     const codexEntries = listDirectoryEntries(codexSkillsDir);
     const claudePath = agentDirs.claude?.absPath || join(paths.HOME, ".claude", "skills");
@@ -324,7 +335,7 @@ function validateCanonicalAction(action, paths, agentDirs) {
   }
 
   if (action.kind === "prune-redundant-codex-link") {
-    const codexRoot = join(paths.HOME, ".codex", "skills");
+    const codexRoot = codexSecondaryDir(paths, agentDirs);
     const expectedPath = join(codexRoot, skill);
     if (resolve(action.path) !== resolve(expectedPath)) throw new Error("Sync plan contains a non-canonical Codex link path");
     assertSafePath(action.path, [codexRoot]);

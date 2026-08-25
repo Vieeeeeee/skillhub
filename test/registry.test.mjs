@@ -205,3 +205,37 @@ test("the registry carries no upstream-version fields it never fills in", (t) =>
     assert.ok(!(field in entry), `registry must not expose ${field}`);
   }
 });
+
+test("a hand-written Chinese blurb counts towards classification", (t) => {
+  const tmp = mkdtempSync(join(tmpdir(), "skillhub-zh-classify-"));
+  t.after(() => rmSync(tmp, { recursive: true, force: true }));
+
+  // Neither the directory name nor the English description says what this is.
+  const skill = join(tmp, ".agents", "skills", "zz-tool");
+  mkdirSync(skill, { recursive: true });
+  writeFileSync(join(skill, "SKILL.md"), "---\nname: zz-tool\ndescription: helper\n---\n");
+
+  const before = buildRegistry(tmp).skills["zz-tool"].category;
+  assert.equal(before, "其他 / 未分类");
+
+  setMetadataOverride("zz-tool", { zh: "把设计稿做成 PPT 演示文稿" }, tmp);
+
+  // Writing blurbs and sorting Skills into categories are the two main jobs
+  // here; the first used to do nothing at all for the second.
+  const after = buildRegistry(tmp).skills["zz-tool"].category;
+  assert.notEqual(after, "其他 / 未分类", "the blurb names exactly what the rules look for");
+});
+
+test("the registry drops fields nothing reads", (t) => {
+  const tmp = mkdtempSync(join(tmpdir(), "skillhub-dead-fields-"));
+  t.after(() => rmSync(tmp, { recursive: true, force: true }));
+
+  const skill = join(tmp, ".agents", "skills", "alpha");
+  mkdirSync(skill, { recursive: true });
+  writeFileSync(join(skill, "SKILL.md"), "---\nname: alpha\ndescription: d\nversion: 1.2.3\n---\n");
+
+  const entry = buildRegistry(tmp).skills.alpha;
+  for (const field of ["aliasOf", "upstreamPath", "installedVersion"]) {
+    assert.ok(!(field in entry), `${field} was written on every entry and read nowhere`);
+  }
+});
