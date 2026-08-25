@@ -21,6 +21,7 @@ not happened.
 - A SKILL.md too large to parse is reported as exactly that, rather than as two missing frontmatter fields that are sitting in the file.
 - Uninstalling falls back to copy-and-remove when the trash is on another filesystem.
 - A link created outside SkillHub shows up without a manual rescan.
+- A Skill that exists only in `~/.codex/skills` is reported. Codex reads the shared directory natively, but the Skill Creator it ships with installs into its own folder, so a Skill made inside Codex was invisible to the inventory that exists to hold every Skill.
 - Every dashboard control is reachable from the keyboard, modals close on Escape, and the smallest text on the page meets AA contrast. The header wraps instead of pushing Rescan out of the viewport.
 - Restoring from the trash in the dashboard names the Skill it restored, instead of reporting "已恢复 undefined" after a restore that worked.
 - A command that fails answers in JSON when the caller asked for JSON.

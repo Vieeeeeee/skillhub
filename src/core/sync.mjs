@@ -35,6 +35,10 @@ function codexSecondaryDir(paths, agentDirs) {
   return agentDirs.codex?.secondaryAbsPath || join(paths.HOME, ".codex", "skills");
 }
 
+function nativeAgentKey(agentDirs) {
+  return Object.entries(agentDirs).find(([, cfg]) => cfg.type === "native")?.[0] || "codex";
+}
+
 export function listDirectoryEntries(dirPath) {
   if (!existsSync(dirPath)) return [];
   try {
@@ -202,6 +206,30 @@ export function buildSyncPlan(customHome = null, { allowHarvest = false } = {}) 
     const claudePath = agentDirs.claude?.absPath || join(paths.HOME, ".claude", "skills");
 
     for (const entry of codexEntries) {
+      // A real directory here is a Skill that only Codex can see. Its own Skill
+      // Creator installs to this directory by default, so this is the ordinary
+      // way a Codex-made Skill comes into being — and until now the inventory
+      // had no idea it existed. Link-based Agent folders have been reported
+      // like this all along; the native Agent's own folder was skipped because
+      // the loop above only walks Agents that need links.
+      if (entry.isDirectory && !entry.isSymlink) {
+        if (
+          ssotNames.has(entry.name) ||
+          managedSkills.has(entry.name) ||
+          agentSpecific.has(entry.name)
+        ) {
+          continue;
+        }
+        if (!existsSync(join(entry.path, "SKILL.md"))) continue;
+        actions.push({
+          kind: "report-agent-orphan",
+          agent: nativeAgentKey(agentDirs),
+          path: entry.path,
+          skill: entry.name,
+          note: "Real directory in the Agent folder, not managed in the SSOT. Move it into ~/.agents/skills to share it with other agents.",
+        });
+        continue;
+      }
       if (!entry.isSymlink || isBrokenLink(entry.path)) continue;
       if (resolvesInto(entry.path, paths.AGENTS_ROOT)) {
         actions.push({

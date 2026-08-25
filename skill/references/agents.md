@@ -16,7 +16,9 @@ Codex 那条最容易搞错：**它直接读统一管理目录**，所以面板�
 
 但整个 agent 的开关对它照样有效：`skillhub agents codex off` 之后，Codex 那一列、它的触发词、同步计划里跟它有关的部分都不再出现。这是"我不用这个 agent，别在界面上占位置"，不是"不让 Codex 读到 skill"——Codex 读不读取决于它自己扫不扫那个目录，SkillHub 管不着，也没打算管。
 
-Codex 还会扫仓库级的 `.agents/skills` 和 `~/.codex/skills`。同名的会自动去重，所以往 `~/.codex/skills` 里补软链是多余的。
+Codex 还会扫仓库级的 `.agents/skills` 和 `~/.codex/skills`。往 `~/.codex/skills` 里补软链是多余的——统一管理目录它本来就读。
+
+`~/.codex/skills` 还有一个身份：**Codex 自己的 Skill Creator 默认装在那儿**（`$CODEX_HOME/skills/<name>`）。所以在 Codex 里现做的 skill，只有 Codex 看得见，别家 agent 一无所知。同步计划会把这类目录报成 `report-agent-orphan`，搬进 `~/.agents/skills` 就能共享。名字在统一管理目录里已经存在的副本不报——那是别的工具自己维护的拷贝，动它会在下次升级时被覆盖回去。
 
 ## 触发名的两套规则
 

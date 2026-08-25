@@ -195,3 +195,31 @@ test("hiding an Agent stops planning for it and keeps its existing links", (t) =
   setAgentVisibility("cursor", true, tmp);
   assert.ok(existsSync(join(cursorDir, "alpha")), "and survives being shown again");
 });
+
+test("a Skill that only exists in the native Agent's own folder is reported", (t) => {
+  const home = mkdtempSync(join(tmpdir(), "skillhub-codex-orphan-"));
+  t.after(() => rmSync(home, { recursive: true, force: true }));
+
+  const ssot = join(home, ".agents", "skills");
+  mkdirSync(join(ssot, "shared"), { recursive: true });
+  writeFileSync(join(ssot, "shared", "SKILL.md"), "---\nname: shared\ndescription: d\n---\n");
+
+  // Codex installs what its own Skill Creator makes into ~/.codex/skills, so
+  // this is the ordinary shape of a Codex-made Skill — and the inventory used
+  // to have no idea it existed, because the orphan scan only walked Agents
+  // that need links.
+  const codexDir = join(home, ".codex", "skills");
+  mkdirSync(join(codexDir, "made-by-codex"), { recursive: true });
+  writeFileSync(join(codexDir, "made-by-codex", "SKILL.md"), "---\nname: made-by-codex\ndescription: d\n---\n");
+
+  // A copy under a name the SSOT already knows belongs to whoever put it there.
+  mkdirSync(join(codexDir, "shared"), { recursive: true });
+  writeFileSync(join(codexDir, "shared", "SKILL.md"), "---\nname: shared\ndescription: d\n---\n");
+
+  const plan = buildSyncPlan(home);
+  const orphans = plan.filter((a) => a.kind === "report-agent-orphan");
+  assert.deepEqual(orphans.map((a) => a.skill), ["made-by-codex"]);
+  assert.equal(orphans[0].agent, "codex");
+  assert.ok(!plan.some((a) => a.skill === "made-by-codex" && a.kind !== "report-agent-orphan"),
+    "a native Agent needs no link, so nothing is proposed for it");
+});
