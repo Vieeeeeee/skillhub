@@ -22,6 +22,10 @@ not happened.
 - Uninstalling falls back to copy-and-remove when the trash is on another filesystem.
 - A link created outside SkillHub shows up without a manual rescan.
 - Every dashboard control is reachable from the keyboard, modals close on Escape, and the smallest text on the page meets AA contrast. The header wraps instead of pushing Rescan out of the viewport.
+- Restoring from the trash in the dashboard names the Skill it restored, instead of reporting "已恢复 undefined" after a restore that worked.
+- A command that fails answers in JSON when the caller asked for JSON.
+- The request-size ceiling is no longer bypassed by a request that declines to declare its size.
+- `undo` takes the same lock the three writers take.
 
 ### Added
 
@@ -33,7 +37,7 @@ not happened.
 
 ### Changed
 
-- A run of metadata writes shares one backup session, so one `undo` returns the file to how it looked before the run. Backups keep the newest 100 sessions.
+- A run of metadata writes shares one backup session, so one `undo` returns the file to how it looked before the run — and says how many writes that covers, in both the CLI and the dashboard. A session is joined only while every file it recorded still matches what it recorded, so an edit made by hand in between ends the run instead of being silently discarded by the next undo. Backups keep the newest 100 sessions, counting only directories that hold a manifest.
 - The packaged rules no longer ship 61 hardcoded "Skill name → upstream repo" guesses. A source comes from a real git remote, or it is not shown.
 - The dashboard leads with the two main jobs rather than one tile per Agent.
 - Upgrade instructions install the published npm package instead of pulling a git checkout that was never made.

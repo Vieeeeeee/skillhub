@@ -1243,11 +1243,14 @@ $("#btn-trash").onclick = openTrash;
 $("#btn-sync").onclick = openSync;
 $("#btn-agents").onclick = openAgentSettings;
 $("#btn-undo").onclick = async () => {
-  if (!confirm("确定撤销最近一次写操作吗？")) return;
+  // 一轮连续补中文介绍共用一个备份会话，所以「最近一次」可能是一整批。
+  // 面板没有查备份列表的接口，与其为一句提示新开一个，不如把话说准。
+  if (!confirm("确定撤销最近一次操作吗？\n如果那是连续补的一批中文介绍，会整批一起回退。")) return;
   try {
     const r = await api("/api/undo", { method: "POST" });
     if (r.ok) {
-      toast(`✓ 成功撤销备份会话: ${r.sessionId}`, "ok");
+      const batched = r.batchedWrites > 1 ? `，这一批合并了 ${r.batchedWrites} 次写入` : "";
+      toast(`✓ 成功撤销备份会话: ${r.sessionId}${batched}`, "ok");
       await load({ rescanHealth: true });
     } else {
       toast(r.error || "未找到可撤销的备份记录", "error");

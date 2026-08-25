@@ -204,7 +204,10 @@ function findCoalescableSession(backupsDir, actionPrefix) {
     // which refuses to overwrite a file changed after its backup — would stop
     // seeing that anything had changed and quietly discard their edit.
     for (const op of manifest.operations || []) {
-      if (op.type !== "write-file" || !op.modifiedDigest) continue;
+      if (op.type !== "write-file") continue;
+      // A digest that was never recorded cannot be checked, so the session
+      // gets no exemption from the check — it simply cannot be joined.
+      if (!op.modifiedDigest) return null;
       if (fileDigest(op.targetFile) !== op.modifiedDigest) return null;
     }
     return { sessionDir, manifestPath, manifest };
