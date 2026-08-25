@@ -235,7 +235,13 @@ test("the registry drops fields nothing reads", (t) => {
   writeFileSync(join(skill, "SKILL.md"), "---\nname: alpha\ndescription: d\nversion: 1.2.3\n---\n");
 
   const entry = buildRegistry(tmp).skills.alpha;
-  for (const field of ["aliasOf", "upstreamPath", "installedVersion"]) {
+  for (const field of ["upstreamPath", "installedVersion"]) {
     assert.ok(!(field in entry), `${field} was written on every entry and read nowhere`);
   }
+  // aliasOf earns its place only on an entry that really is a second name for
+  // another Skill, and realPath only when it differs from the entry path.
+  assert.ok(!("aliasOf" in entry), "an ordinary Skill is not an alias of anything");
+  // On macOS the temp directory is itself reached through a symlink, so a real
+  // realPath here is correct. The contract is that it is never a duplicate.
+  assert.notEqual(entry.realPath, entry.path, "the same string must not be stored twice");
 });

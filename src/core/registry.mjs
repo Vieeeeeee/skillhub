@@ -416,7 +416,12 @@ export function buildRegistry(customHome = null) {
     // as connect-chrome — and the real directory is named after the frontmatter
     // exactly as it should be. Calling that broken sent the user to edit a file
     // that gets overwritten on the next upstream update.
-    const isAliasLink = Boolean(realPath) && basename(realPath) === fmName;
+    // An alias needs all three: the entry goes by another name, it is reached
+    // through a link, and the real directory is named after its own frontmatter.
+    // Without the first condition this matches almost every ordinary Skill,
+    // whose directory is of course named after its frontmatter.
+    const isAliasLink =
+      Boolean(fmName) && fmName !== name && Boolean(realPath) && basename(realPath) === fmName;
     const hasNameMismatch =
       Boolean(fmName) && fmName !== name && acceptedAliases[name] !== fmName && !isAliasLink;
 
@@ -433,8 +438,10 @@ export function buildRegistry(customHome = null) {
       inferredSource: inferredSources[name] || "",
       localCanonical: localCanonical.has(name),
       outsideManagedHome,
-      realPath,
-      aliasOfSkill: isAliasLink ? fmName : "",
+      // Only when it differs. For a real directory it repeats `path` verbatim,
+      // which is over half the library paying for a field that says nothing.
+      ...(realPath && realPath !== entryPath ? { realPath } : {}),
+      ...(isAliasLink ? { aliasOf: fmName } : {}),
       // No hasUpdate / latestUpstream / lastChecked here: nothing ever queried
       // an upstream, so the dashboard spent six components reporting "all up to
       // date" from a field that was only ever copied forward as false. SkillHub

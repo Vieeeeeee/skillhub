@@ -879,6 +879,9 @@ function renderStatusBadges(s) {
   if (s.hasSkillMd && s.hasName === false) out.push('<span class="badge warnb" title="frontmatter 缺 name">⚠ 缺name</span>');
   if (s.hasSkillMd && s.hasDescription === false) out.push('<span class="badge warnb" title="frontmatter 缺 description">⚠ 缺描述</span>');
   if (s.localCanonical) out.push('<span class="badge canon" title="本地是权威版本">⭐</span>');
+  // 上游 bundle 常给同一个 skill 起第二个名字。不说清楚的话，列表里看着像两个
+  // 东西，触发词还一模一样。
+  if (s.aliasOf) out.push(`<span class="badge tierC" title="和 ${escapeHtml(s.aliasOf)} 是同一个 Skill，只是多了一个名字">↔ ${escapeHtml(s.aliasOf)} 的别名</span>`);
   return out.join("");
 }
 
