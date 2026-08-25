@@ -264,7 +264,7 @@ check-update       检查 SkillHub 是否有新版本
 | Undo 报失败 | 逐条读返回的日志。失败的 manifest 会保留可重试，且不会覆盖后来出现的新路径。 |
 | Git 更新失败 | 本地改动、认证、远端或非快进历史的问题，直接用 Git 解决。SkillHub 有意只用 `--ff-only`。 |
 | 热榜或版本检查失败 | GitHub 离线或触发限流。本地清单功能不受影响。 |
-| 想关掉面板 | 回到启动它的终端按 Ctrl-C。终端已经关了就 `lsof -ti:7777 \| xargs kill`；Windows 用 `netstat -ano \| findstr :7777` 找到 PID 再 `taskkill /PID <pid> /F`。 |
+| 想关掉面板 | 回到启动它的终端按 Ctrl-C。终端已经关了，先用 `lsof -nP -iTCP:7777 -sTCP:LISTEN` 查出监听方，再 kill 那一个 PID。只按端口匹配会把「正连着这个端口的进程」一起命中，机器上跑着本地代理时那可能是大半个桌面。Windows 用 `netstat -ano \| findstr :7777` 找到 PID 再 `taskkill /PID <pid> /F`。 |
 | 回收站占地方 | 里面是真实 Skill 数据，SkillHub 不会自动清。确认不要了就自己删 `~/.agents/_trash/` 下对应的目录。 |
 
 ## 开发与验证
@@ -277,6 +277,8 @@ npm run pack:check
 ```
 
 `npm run pack:check` 会预览 npm 包的准确内容，不会发布。测试、CI 配置和内部计划不会进入 npm 包。执行 `npm publish` 时，`prepublishOnly` 还会自动运行测试、生产依赖审计和包内容检查。行为改动请补回归测试，路径、同源校验和回滚护栏不得弱化。
+
+发版由标签驱动。改 `package.json` 版本号、写好 CHANGELOG，推一个 `v<版本号>` 标签，再对着这个标签触发发布流程：`gh workflow run "Publish to npm" --ref v<版本号>`。流程会拒绝名字不等于 `v` 加 `package.json` 版本号的 ref；它用的 `npm` environment 还设了人工审批，没人批准之前不会有任何东西进入 registry。
 
 ## 私密报告安全问题
 

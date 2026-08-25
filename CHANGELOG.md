@@ -30,6 +30,7 @@ not happened.
 
 ### Added
 
+- A Skill that lives only inside one Agent's own folder is listed in the inventory, marked `仅 <Agent>`. It shows that Agent's trigger word and no other, and SkillHub offers no edit, category, or uninstall control for a directory it does not own.
 - `remove`, `trash`, and `note` on the CLI, so an agent can do everything the dashboard can.
 - Chinese blurbs count towards categorisation; writing them now improves the other main job instead of nothing.
 - `scan --json --compact` returns the fields a caller decides with — about a third of the tokens.

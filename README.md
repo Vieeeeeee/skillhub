@@ -264,7 +264,7 @@ check-update       Check whether a newer SkillHub release exists
 | Undo reports a failure | Read each returned log. SkillHub keeps a failed manifest retryable and will not overwrite a newer replacement path. |
 | Git update fails | Resolve local changes, authentication, remote, or non-fast-forward history directly with Git. SkillHub intentionally uses `--ff-only`. |
 | Hot list or version check fails | GitHub may be offline or rate-limited. Core local inventory continues to work. |
-| Stopping the dashboard | Press Ctrl-C in the terminal that started it. If that terminal is gone: `lsof -ti:7777 \| xargs kill`, or on Windows `netstat -ano \| findstr :7777` then `taskkill /PID <pid> /F`. |
+| Stopping the dashboard | Press Ctrl-C in the terminal that started it. If that terminal is gone, identify the listener first with `lsof -nP -iTCP:7777 -sTCP:LISTEN`, then kill that one PID. Matching on the port alone also matches every process merely connected to it, which on a machine running a local proxy can be most of what is open. On Windows: `netstat -ano \| findstr :7777`, then `taskkill /PID <pid> /F`. |
 | The trash is taking up space | It holds real Skill data and is never cleared automatically. Delete the directories under `~/.agents/_trash/` yourself once you are sure. |
 
 ## Development
@@ -277,6 +277,8 @@ npm run pack:check
 ```
 
 `npm run pack:check` previews the exact npm package contents without publishing. Tests, CI configuration, and planning notes are excluded from the package. `npm publish` also runs the test suite, production dependency audit, and package-content check through `prepublishOnly`. Pull requests should include a regression test for behavior changes and must not weaken path, origin, or rollback checks.
+
+Releases are tag-driven. Set the version in `package.json`, write the CHANGELOG entry, push a `v<version>` tag, then dispatch the publish workflow against that tag with `gh workflow run "Publish to npm" --ref v<version>`. The workflow rejects any ref whose name is not exactly `v` followed by the `package.json` version, and its `npm` environment holds the run for a manual approval, so nothing reaches the registry until a maintainer approves that deployment.
 
 ## Security reports
 
