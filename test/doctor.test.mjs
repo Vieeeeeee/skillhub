@@ -4,7 +4,8 @@ import { mkdtempSync, mkdirSync, writeFileSync, rmSync, existsSync, symlinkSync 
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { buildRegistry } from "../src/core/registry.mjs";
-import { runDoctor } from "../src/core/doctor/index.mjs";
+import { execFileSync } from "node:child_process";
+import { runDoctor, isDefaultReportItem } from "../src/core/doctor/index.mjs";
 
 test("doctor flags missing fields, secrets, and long descriptions", (t) => {
   const tmp = mkdtempSync(join(tmpdir(), "skillhub-doctor-test-"));
@@ -147,4 +148,40 @@ test("findings are tagged by whether the user can act on them", (t) => {
   assert.equal(mine.owned, true, "the user's own Skill is actionable");
   assert.equal(upstream.owned, false, "an upstream-managed Skill is informational");
   assert.ok(issues.every((i) => typeof i.owned === "boolean"), "every finding carries the tag");
+});
+
+test("versioning the Skills folder with git does not hide every finding", (t) => {
+  const tmp = mkdtempSync(join(tmpdir(), "skillhub-doctor-git-ssot-"));
+  t.after(() => rmSync(tmp, { recursive: true, force: true }));
+
+  const ssot = join(tmp, ".agents", "skills");
+  const mine = join(ssot, "mine");
+  mkdirSync(mine, { recursive: true });
+  writeFileSync(join(mine, "SKILL.md"), "---\nname: mine\ndescription: my own skill\n---\n");
+  const fakeToken = "ghp_" + "b".repeat(34);
+  writeFileSync(join(mine, "leak.txt"), `token = ${fakeToken}\n`);
+
+  // Keeping the whole Skills folder under version control is a normal thing to
+  // do. It must not turn every Skill inside it into "someone else's".
+  execFileSync("git", ["-C", ssot, "init", "-q"], { stdio: "ignore" });
+  execFileSync("git", ["-C", ssot, "remote", "add", "origin", "https://github.com/someone/my-skills.git"], { stdio: "ignore" });
+
+  const issues = runDoctor(buildRegistry(tmp), tmp);
+  const secret = issues.find((i) => i.id === "secret-detected" && i.skill === "mine");
+
+  assert.ok(secret, "a planted token inside a git-versioned Skills folder must still be reported");
+  assert.equal(secret.owned, true, "a Skill is not upstream-managed just because an ancestor directory is a repo");
+  assert.ok(isDefaultReportItem(secret), "the default report must list it");
+});
+
+test("real breakage is listed even inside an upstream-managed Skill", () => {
+  const upstreamSecret = { tier: "A", owned: false, decision: true };
+  const upstreamNote = { tier: "C", owned: false, decision: false };
+  const ownNote = { tier: "C", owned: true, decision: false };
+  const ownDecision = { tier: "B", owned: true, decision: true };
+
+  assert.equal(isDefaultReportItem(upstreamSecret), true);
+  assert.equal(isDefaultReportItem(ownDecision), true);
+  assert.equal(isDefaultReportItem(upstreamNote), false);
+  assert.equal(isDefaultReportItem(ownNote), false);
 });

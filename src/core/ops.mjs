@@ -15,7 +15,12 @@ import { getPaths, getAgentDirs } from "./paths.mjs";
 import { assertSafeName, assertSafeRealPath, isInsideRoot } from "./guard.mjs";
 import { createLink, unlinkSafe, isSymlink, readLinkSafe, moveToTrash } from "./link.mjs";
 import { createBackupSession, recordOperation } from "./backup.mjs";
-import { loadUserOverrides, parseSkillMeta, saveUserOverrides } from "./registry.mjs";
+import {
+  loadUserOverrides,
+  parseSkillMeta,
+  saveUserOverrides,
+  withOverridesLock,
+} from "./registry.mjs";
 
 const GIT_TIMEOUT_MS = 30_000;
 const MAX_REPOSITORY_BYTES = 100 * 1024 * 1024;
@@ -62,12 +67,6 @@ export function toggleAgent(skillName, agentKey, enabled, customHome = null) {
     throw new Error(`Agent "${agentKey}" uses native discovery and cannot be toggled by SkillHub`);
   }
 
-  const overrides = loadUserOverrides(paths.OVERRIDES_FILE);
-  overrides.agentDisabled ||= {};
-  overrides.agentDisabled[agentKey] ||= [];
-
-  const disabledSet = new Set(overrides.agentDisabled[agentKey]);
-
   const skillInSSOT = join(paths.SSOT, skillName);
   const linkPath = join(agCfg.absPath, skillName);
 
@@ -78,6 +77,23 @@ export function toggleAgent(skillName, agentKey, enabled, customHome = null) {
   if (!existsSync(skillInSSOT) || !existsSync(join(skillInSSOT, "SKILL.md"))) {
     throw new Error(`Skill "${skillName}" not found or missing its root SKILL.md at ${skillInSSOT}`);
   }
+
+  // A real directory in the Agent folder belongs to whatever put it there —
+  // some tools keep their own copies and upgrade them themselves. SkillHub
+  // never deletes it, but it must not report the Skill as disabled either: the
+  // Agent goes on reading that directory regardless of what we record.
+  if (!enabled && !isSymlink(linkPath) && existsSync(linkPath)) {
+    throw new Error(
+      `Cannot disable "${skillName}" for "${agentKey}": ${linkPath} is a real directory, not a link SkillHub created. ` +
+        `Whatever manages that copy still owns it — remove or reconfigure it there.`
+    );
+  }
+
+  return withOverridesLock(paths.OVERRIDES_FILE, () => {
+  const overrides = loadUserOverrides(paths.OVERRIDES_FILE);
+  overrides.agentDisabled ||= {};
+  overrides.agentDisabled[agentKey] ||= [];
+  const disabledSet = new Set(overrides.agentDisabled[agentKey]);
 
   const session = createBackupSession(paths.BACKUPS_DIR, `toggle-${agentKey}-${skillName}`);
 
@@ -115,6 +131,7 @@ export function toggleAgent(skillName, agentKey, enabled, customHome = null) {
   saveOverridesWithBackup(session, paths.OVERRIDES_FILE, overrides);
 
   return { ok: true, skill: skillName, agent: agentKey, enabled, sessionId: session.manifest.sessionId };
+  });
 }
 
 /**
@@ -128,12 +145,19 @@ export function setAgentVisibility(agentKey, visible, customHome = null) {
   if (!agentDirs[agentKey]) throw new Error(`Unknown agent: "${agentKey}"`);
   assertManagedHomePath(paths.OVERRIDES_FILE, paths, false);
 
-  const overrides = loadUserOverrides(paths.OVERRIDES_FILE);
-  const session = createBackupSession(paths.BACKUPS_DIR, `agent-visibility-${agentKey}`);
-  overrides.agentVisibility ||= {};
-  overrides.agentVisibility[agentKey] = Boolean(visible);
-  saveOverridesWithBackup(session, paths.OVERRIDES_FILE, overrides);
-  return { ok: true, agent: agentKey, visible: Boolean(visible), sessionId: session.id };
+  return withOverridesLock(paths.OVERRIDES_FILE, () => {
+    const overrides = loadUserOverrides(paths.OVERRIDES_FILE);
+    const session = createBackupSession(paths.BACKUPS_DIR, `agent-visibility-${agentKey}`);
+    overrides.agentVisibility ||= {};
+    overrides.agentVisibility[agentKey] = Boolean(visible);
+    saveOverridesWithBackup(session, paths.OVERRIDES_FILE, overrides);
+    return {
+      ok: true,
+      agent: agentKey,
+      visible: Boolean(visible),
+      sessionId: session.manifest.sessionId,
+    };
+  });
 }
 
 export function setMetadataOverride(skillName, { zh, notes, category }, customHome = null) {
@@ -145,29 +169,31 @@ export function setMetadataOverride(skillName, { zh, notes, category }, customHo
   if (!existsSync(skillPath) || !existsSync(join(skillPath, "SKILL.md"))) {
     throw new Error(`Skill "${skillName}" not found or missing its root SKILL.md at ${skillPath}`);
   }
-  const overrides = loadUserOverrides(paths.OVERRIDES_FILE);
-  const session = createBackupSession(paths.BACKUPS_DIR, `metadata-${skillName}`);
+  return withOverridesLock(paths.OVERRIDES_FILE, () => {
+    const overrides = loadUserOverrides(paths.OVERRIDES_FILE);
+    const session = createBackupSession(paths.BACKUPS_DIR, `metadata-${skillName}`);
 
-  if (zh !== undefined) {
-    overrides.zhOverrides ||= {};
-    if (zh) overrides.zhOverrides[skillName] = zh;
-    else delete overrides.zhOverrides[skillName];
-  }
+    if (zh !== undefined) {
+      overrides.zhOverrides ||= {};
+      if (zh) overrides.zhOverrides[skillName] = zh;
+      else delete overrides.zhOverrides[skillName];
+    }
 
-  if (notes !== undefined) {
-    overrides.notesOverrides ||= {};
-    if (notes) overrides.notesOverrides[skillName] = notes;
-    else delete overrides.notesOverrides[skillName];
-  }
+    if (notes !== undefined) {
+      overrides.notesOverrides ||= {};
+      if (notes) overrides.notesOverrides[skillName] = notes;
+      else delete overrides.notesOverrides[skillName];
+    }
 
-  if (category !== undefined) {
-    overrides.categoryOverrides ||= {};
-    if (category) overrides.categoryOverrides[skillName] = category;
-    else delete overrides.categoryOverrides[skillName];
-  }
+    if (category !== undefined) {
+      overrides.categoryOverrides ||= {};
+      if (category) overrides.categoryOverrides[skillName] = category;
+      else delete overrides.categoryOverrides[skillName];
+    }
 
-  saveOverridesWithBackup(session, paths.OVERRIDES_FILE, overrides);
-  return { ok: true, sessionId: session.manifest.sessionId };
+    saveOverridesWithBackup(session, paths.OVERRIDES_FILE, overrides);
+    return { ok: true, sessionId: session.manifest.sessionId };
+  });
 }
 
 export function addSkillFromGit(gitUrl, { name: customName = null } = {}, customHome = null) {

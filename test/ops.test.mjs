@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { mkdtempSync, mkdirSync, readFileSync, writeFileSync, rmSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { execFileSync } from "node:child_process";
+import { execFileSync, execFile } from "node:child_process";
 import {
   addSkillFromGit,
   removeBundle,
@@ -237,4 +237,66 @@ test("updateSkill fast-forwards a managed repository", (t) => {
   const result = updateSkill("demo", tmp);
   assert.equal(result.repositoryPath, skill);
   assert.match(readFileSync(join(skill, "SKILL.md"), "utf-8"), /description: v2/);
+});
+
+test("disabling an Agent copy that is a real directory fails loudly", (t) => {
+  const tmp = mkdtempSync(join(tmpdir(), "skillhub-disable-realdir-"));
+  t.after(() => rmSync(tmp, { recursive: true, force: true }));
+
+  const skill = join(tmp, ".agents", "skills", "alpha");
+  mkdirSync(skill, { recursive: true });
+  writeFileSync(join(skill, "SKILL.md"), "---\nname: alpha\ndescription: d\n---\n");
+
+  // Some tools keep their own copy in the Agent folder and upgrade it
+  // themselves. SkillHub must not delete it, and must not pretend it turned it
+  // off either — the Agent goes on reading that directory.
+  const agentCopy = join(tmp, ".claude", "skills", "alpha");
+  mkdirSync(agentCopy, { recursive: true });
+  writeFileSync(join(agentCopy, "SKILL.md"), "---\nname: alpha\ndescription: a copy\n---\n");
+
+  assert.throws(
+    () => toggleAgent("alpha", "claude", false, tmp),
+    /real directory, not a link SkillHub created/
+  );
+  assert.ok(existsSync(join(agentCopy, "SKILL.md")), "the real directory must be left untouched");
+
+  const overridesFile = join(tmp, ".skillhub", "overrides.json");
+  const disabled = existsSync(overridesFile)
+    ? (JSON.parse(readFileSync(overridesFile, "utf-8")).agentDisabled?.claude || [])
+    : [];
+  assert.ok(!disabled.includes("alpha"), "a refused disable must not be recorded as done");
+});
+
+test("parallel metadata writes keep every edit", async (t) => {
+  const tmp = mkdtempSync(join(tmpdir(), "skillhub-parallel-meta-"));
+  t.after(() => rmSync(tmp, { recursive: true, force: true }));
+
+  const names = Array.from({ length: 8 }, (_, i) => `s${i + 1}`);
+  for (const name of names) {
+    const dir = join(tmp, ".agents", "skills", name);
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, "SKILL.md"), `---\nname: ${name}\ndescription: d\n---\n`);
+  }
+
+  // An agent filling in blurbs has no reason to serialise these calls: the
+  // commands do not depend on each other. Each one rewrites the whole override
+  // file, so without a lock most of them used to be lost while all of them
+  // reported success.
+  const cli = join(process.cwd(), "bin", "skillhub");
+  await Promise.all(
+    names.map(
+      (name) =>
+        new Promise((resolve, reject) => {
+          execFile(
+            process.execPath,
+            [cli, "describe", name, `${name} 的中文介绍`],
+            { env: { ...process.env, SKILL_HUB_HOME: tmp } },
+            (error) => (error ? reject(error) : resolve())
+          );
+        })
+    )
+  );
+
+  const written = JSON.parse(readFileSync(join(tmp, ".skillhub", "overrides.json"), "utf-8")).zhOverrides || {};
+  assert.deepEqual(Object.keys(written).sort(), [...names].sort());
 });

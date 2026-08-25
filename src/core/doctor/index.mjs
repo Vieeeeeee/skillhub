@@ -146,18 +146,30 @@ const BACKGROUND_RULES = new Set([
 ]);
 
 /**
+ * What the default report lists. Real breakage always surfaces: a leaked key or
+ * a broken link does not become less urgent because the Skill happens to track
+ * an upstream source. Everything else has to be both the user's own and an
+ * actual decision to make.
+ *
+ * The dashboard mirrors this rule in web/index.html; keep the two in step.
+ */
+export function isDefaultReportItem(issue) {
+  return issue.tier === "A" || (issue.owned && issue.decision !== false);
+}
+
+/**
  * A Skill that tracks an upstream source is not the user's to edit — a local
  * change there gets overwritten on the next update. Everything else counts as
  * the user's own, including Skills that only live in an Agent directory.
+ *
+ * Only the Skill directory itself decides this. An `origin` inherited from some
+ * ancestor directory does not: versioning `~/.agents/skills` with git is a
+ * normal thing to do, and reading that as "everything here is upstream" hid
+ * every finding in the whole library behind the `--all` flag.
  */
 function isThirdParty(s) {
   if (!s) return false;
-  return (
-    Boolean(s.origin) ||
-    Boolean(s.bundle) ||
-    s.type === "git" ||
-    s.type === "bundle-symlink"
-  );
+  return Boolean(s.bundle) || s.type === "git" || s.type === "bundle-symlink";
 }
 
 /**

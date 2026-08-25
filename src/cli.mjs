@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { getPaths, getAgentDirs, isAgentVisible, ROOT_DIR } from "./core/paths.mjs";
 import { buildRegistry, loadUserOverrides } from "./core/registry.mjs";
 import { buildSyncPlan, applySyncPlan } from "./core/sync.mjs";
-import { runDoctor } from "./core/doctor/index.mjs";
+import { runDoctor, isDefaultReportItem } from "./core/doctor/index.mjs";
 import { undoLastBackup, listBackups } from "./core/backup.mjs";
 import { toggleAgent, removeSkill, updateSkill, setMetadataOverride, setAgentVisibility } from "./core/ops.mjs";
 import { checkSelfUpdate, getCurrentVersion } from "./core/update-check.mjs";
@@ -39,6 +39,7 @@ Commands:
 
 Options:
   --json             Output raw JSON result
+  --compact          With scan --json: only the fields a caller decides with
   --apply            Create missing agent links from the current server-side plan
   --fix-broken       Remove broken symlinks only (cannot be combined with --apply)
   --port <number>    Specify server port (default: 7777)
@@ -47,9 +48,45 @@ Options:
 `);
 }
 
+/**
+ * The registry carries 27 fields per Skill so the dashboard can render every
+ * column. An agent reading `scan --json` needs five of them, and the full
+ * payload runs to roughly 95k tokens on a library of 200 Skills — enough to
+ * crowd out the task it was called for. This keeps what a caller decides with.
+ */
+function compactRegistry(reg) {
+  const skills = {};
+  for (const [name, s] of Object.entries(reg.skills || {})) {
+    const description = s.description || "";
+    const zh = s.zh || "";
+    // A blurb derived from an already-Chinese description is a truncated copy
+    // of the line above it. Repeating it doubles the payload and tells a caller
+    // nothing, so only a blurb that says something new is worth sending.
+    const zhIsOwnText = zh && !description.startsWith(zh.replace(/\.\.\.$/, ""));
+    skills[name] = {
+      description,
+      ...(zhIsOwnText ? { zh } : {}),
+      hasBlurb: Boolean(zh),
+      category: s.category,
+      type: s.type,
+      agents: Object.entries(s.agents || {})
+        .filter(([, visible]) => visible)
+        .map(([agent]) => agent),
+    };
+  }
+  return {
+    ssot: reg.ssot,
+    generatedAt: reg.generatedAt,
+    total: Object.keys(skills).length,
+    knownCategories: reg.knownCategories || [],
+    skills,
+  };
+}
+
 // 未知参数一律报错。静默忽略会让用户以为动作生效了，实际什么都没发生。
 const KNOWN_OPTIONS = new Set([
-  "--json", "--apply", "--fix-broken", "--port", "--no-open", "--all", "--help", "-h", "--version", "-v",
+  "--json", "--apply", "--fix-broken", "--port", "--no-open", "--all", "--compact",
+  "--help", "-h", "--version", "-v",
 ]);
 
 function assertKnownOptions() {
@@ -93,7 +130,12 @@ async function main() {
     case "list": {
       const reg = buildRegistry();
       if (jsonMode) {
-        console.log(JSON.stringify(reg, null, 2));
+        // Compact output is read by a program, so it skips the indentation too.
+        console.log(
+          args.includes("--compact")
+            ? JSON.stringify(compactRegistry(reg))
+            : JSON.stringify(reg, null, 2)
+        );
         return;
       }
       const count = Object.keys(reg.skills || {}).length;
@@ -127,11 +169,14 @@ async function main() {
 
       // Findings in Skills that track an upstream source are informational: a
       // local edit there is overwritten on the next update. They stay out of
-      // the default report and out of its headline count.
+      // the default report and out of its headline count. Tier A is the
+      // exception — a leaked key or a broken link is worth reading wherever it
+      // lives, so isDefaultReportItem always lets it through.
       const showAll = args.includes("--all");
-      const upstream = issues.filter((i) => !i.owned);
-      const background = issues.filter((i) => i.owned && !i.decision);
-      const shown = showAll ? issues : issues.filter((i) => i.owned && i.decision);
+      const shown = showAll ? issues : issues.filter(isDefaultReportItem);
+      const hidden = issues.filter((i) => !isDefaultReportItem(i));
+      const upstream = hidden.filter((i) => !i.owned);
+      const background = hidden.filter((i) => i.owned && !i.decision);
 
       console.log(`\n🩺 SkillHub Health Doctor Report`);
       console.log(`Found ${shown.length} item(s):\n`);

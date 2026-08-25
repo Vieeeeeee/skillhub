@@ -40,13 +40,13 @@ node ~/.skillhub/cli/node_modules/@wsiwsii/skillhub/bin/skillhub --version
 ### Step 1 只读盘点
 
 ```bash
-skillhub scan --json      # 装了哪些、分类、各 agent 可见性
-skillhub pending --json   # 还缺中文介绍或还没归类的
-skillhub agents --json    # 在用哪些 agent
-skillhub doctor --json    # 体检
+skillhub scan --json --compact   # 装了哪些、分类、各 agent 可见性
+skillhub agents --json           # 在用哪些 agent
+skillhub pending --json          # 还缺中文介绍或还没归类的
+skillhub doctor --json           # 体检
 ```
 
-`scan` 在技能多的时候输出很大，只取需要的字段，别整段读进来。
+`--compact` 只给做判断要用的字段：描述、分类、有没有中文介绍、哪些 agent 能读到。技能两百个左右时它约是完整清单的三分之一。需要来源、commit、软链目标这些细节时才去掉它，那份完整输出在大库上足以占满上下文。
 
 同步和可见性上拿不准时，读 [references/agents.md](references/agents.md)——那里讲各家 agent 的实际行为（谁需要软链、触发名的两套规则、哪些自管的 skill 不该动）。
 
@@ -104,9 +104,11 @@ skillhub agents cursor off   # 不用 Cursor
 
 体检是辅助功能，报出来的多数不紧急，别搞得吓人。
 
-**默认只列存在决策的项**——也就是"要不要动它"这个问题真实存在的那些。描述偏长、文件偏大、扫描覆盖不全属于背景信息，没有决策，默认不列，`--all` 才看得到。
+结果分三级：A 级是真损坏（缺 SKILL.md、缺 name 或 description、name 与目录名不一致、软链断了、目录里有疑似 API key），B 级是提醒（硬编码了别人的家目录、某个 skill 只有单个 agent 能读到），C 级是优化建议。
 
-列出来的分三级：A 级是真损坏（缺 SKILL.md、缺 name 或 description、name 与目录名不一致、软链断了、目录里有疑似 API key），B 级是提醒（硬编码了别人的家目录、某个 skill 只有单个 agent 能读到），C 级是优化建议。
+**A 级一律列出来。**密钥泄露、软链断掉这类事不会因为这个 skill 随上游更新就变得不重要。
+
+B 级和 C 级要同时满足两个条件才默认显示：是用户自己的 skill，并且确实存在"要不要动它"这个决定。描述偏长、文件偏大、扫描覆盖不全属于背景信息，没有决策，默认不列，`--all` 才看得到。
 
 每条带 `owned` 字段：为真的是用户自己的 skill，改了算数；为假的来自随上游更新的 skill，本地改动会被下次升级覆盖，只作参考。
 

@@ -1,8 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync, existsSync } from "node:fs";
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync, existsSync, symlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { setMetadataOverride } from "../src/core/ops.mjs";
 import {
   parseSkillMeta,
   buildRegistry,
@@ -112,4 +113,58 @@ test("overrides writes are readable and malformed files fail loudly", (t) => {
 
   writeFileSync(file, "{broken-json");
   assert.throws(() => loadUserOverrides(file), /Unable to read overrides file/);
+});
+
+test("an erased Chinese blurb stays erased across rescans", (t) => {
+  const tmp = mkdtempSync(join(tmpdir(), "skillhub-blurb-clear-"));
+  t.after(() => rmSync(tmp, { recursive: true, force: true }));
+
+  const skill = join(tmp, ".agents", "skills", "alpha");
+  mkdirSync(skill, { recursive: true });
+  writeFileSync(join(skill, "SKILL.md"), "---\nname: alpha\ndescription: an english description\n---\n");
+
+  setMetadataOverride("alpha", { zh: "第一版介绍" }, tmp);
+  assert.equal(buildRegistry(tmp).skills.alpha.zh, "第一版介绍");
+
+  // Writing an empty blurb used to report success while the previous registry
+  // quietly handed the old text back on the next scan.
+  setMetadataOverride("alpha", { zh: "" }, tmp);
+  assert.equal(buildRegistry(tmp).skills.alpha.zh, "", "clearing a blurb must actually clear it");
+});
+
+test("a broken Agent link does not count as the Agent seeing the Skill", (t) => {
+  const tmp = mkdtempSync(join(tmpdir(), "skillhub-broken-visible-"));
+  t.after(() => rmSync(tmp, { recursive: true, force: true }));
+
+  const skill = join(tmp, ".agents", "skills", "alpha");
+  mkdirSync(skill, { recursive: true });
+  writeFileSync(join(skill, "SKILL.md"), "---\nname: alpha\ndescription: d\n---\n");
+
+  const claudeSkills = join(tmp, ".claude", "skills");
+  mkdirSync(claudeSkills, { recursive: true });
+  symlinkSync(join(tmp, "gone"), join(claudeSkills, "alpha"), "dir");
+
+  const reg = buildRegistry(tmp);
+  assert.equal(
+    reg.skills.alpha.agents.claude,
+    false,
+    "a dangling link was reported as visible while the sync plan called it broken"
+  );
+});
+
+test("the registry carries no upstream-version fields it never fills in", (t) => {
+  const tmp = mkdtempSync(join(tmpdir(), "skillhub-no-phantom-update-"));
+  t.after(() => rmSync(tmp, { recursive: true, force: true }));
+
+  const skill = join(tmp, ".agents", "skills", "alpha");
+  mkdirSync(skill, { recursive: true });
+  writeFileSync(join(skill, "SKILL.md"), "---\nname: alpha\ndescription: d\n---\n");
+
+  // Nothing in SkillHub queries an upstream version. Keeping the fields around
+  // let the dashboard render "all up to date" out of a value that was only ever
+  // copied forward as false.
+  const entry = buildRegistry(tmp).skills.alpha;
+  for (const field of ["hasUpdate", "latestUpstream", "lastChecked"]) {
+    assert.ok(!(field in entry), `registry must not expose ${field}`);
+  }
 });

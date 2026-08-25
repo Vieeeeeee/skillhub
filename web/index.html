@@ -271,10 +271,6 @@ tbody td { padding: 8px 6px; vertical-align: top; }
         <div class="legend" id="legend-types"></div>
       </div>
       <div class="panel">
-        <h3>上游更新 <span class="mono" id="upd-meta" style="font-size:10px;letter-spacing:0"></span></h3>
-        <div class="list" id="upd-list"></div>
-      </div>
-      <div class="panel">
         <h3>健康体检报告</h3>
         <div class="list" id="health-list"><div class="empty">扫描中…</div></div>
       </div>
@@ -296,7 +292,6 @@ tbody td { padding: 8px 6px; vertical-align: top; }
     <div class="cat-item active" data-cat="__all__"><span>全部</span><span class="count" id="cnt-all">0</span></div>
     <div class="cat-item" data-cat="__git__"><span>📦 git 源</span><span class="count" id="cnt-git">0</span></div>
     <div class="cat-item" data-cat="__local__"><span>📁 本地</span><span class="count" id="cnt-local">0</span></div>
-    <div class="cat-item" data-cat="__updates__"><span>🟠 有更新</span><span class="count" id="cnt-upd">0</span></div>
     <div class="cat-item" data-cat="__issues__"><span>⚠️ 体检告警</span><span class="count" id="cnt-issues">0</span></div>
     <div class="cat-item" data-cat="__needs_zh__"><span>🌐 待补中文</span><span class="count" id="cnt-zh">0</span></div>
     <div style="height:8px"></div>
@@ -402,6 +397,13 @@ function hasIssue(s) {
   return s.nameMismatch || !s.hasSkillMd || s.hasName === false || s.hasDescription === false;
 }
 
+// 与 src/core/doctor/index.mjs 的 isDefaultReportItem 保持一致：真损坏（Tier A）
+// 一律显示，不因为「这个 Skill 随上游更新」就折叠起来；其余要既是用户自己的、
+// 又确实存在一个决定要做。改这里记得同时改那边。
+function isDefaultReportItem(i) {
+  return i.tier === "A" || (i.owned && i.decision !== false);
+}
+
 function allAgents() {
   return Object.entries(registry?.agentMeta || {}).map(([key, meta]) => ({ key, ...meta }));
 }
@@ -454,7 +456,6 @@ function renderDash() {
   const vals = sk.map(([,s]) => s);
   const n = vals.length;
   const git = vals.filter(s => s.type === "git" || s.type === "bundle-symlink").length;
-  const upd = vals.filter(s => s.hasUpdate === true).length;
   const issues = vals.filter(hasIssue).length;   // 占位，体检结果回来后由 syncIssueTile 覆盖
 
   $("#tiles").innerHTML = [
@@ -469,7 +470,6 @@ function renderDash() {
       };
     }),
     { k:"Git 追踪", v:git, s:"支持一键拉取", a:"var(--s4)" },
-    { k:"待更新", v:upd, s: upd ? "有上游新版本" : "全部最新", a: upd ? "var(--warn)" : "var(--good)", cls: upd ? "alert" : "ok" },
     { k:"体检告警", v:issues, s: issues ? "需人工关注" : "健康状态良好", a: issues ? "var(--crit)" : "var(--good)", cls: issues ? "alert" : "ok", id:"tile-issues" },
   ].map(t => `
     <div class="tile ${t.cls||""}"${t.id ? ` id="${t.id}"` : ""} style="--tile-accent:${t.a}">
@@ -494,27 +494,6 @@ function renderDash() {
     `<div class="seg" style="flex:${v}; background:${color}" title="${label}: ${v}"></div>`).join("");
   $("#legend-types").innerHTML = typeCounts.map(([label, v, color]) =>
     `<span class="li"><span class="sw" style="background:${color}"></span>${label} <b class="num">${v}</b></span>`).join("");
-
-  const updSkills = sk.filter(([,s]) => s.hasUpdate === true);
-  const seen = new Set();
-  const updRows = [];
-  for (const [name, s] of updSkills) {
-    const key = s.bundle || name;
-    if (seen.has(key)) continue;
-    seen.add(key);
-    const extra = s.bundle ? sk.filter(([,x]) => x.bundle === s.bundle && x.hasUpdate).length : 1;
-    updRows.push({ name, bundle: s.bundle, latest: s.latestUpstream, extra });
-  }
-  const lastChecked = vals.map(s => s.lastChecked).filter(Boolean).sort().pop();
-  $("#upd-meta").textContent = lastChecked ? `上次扫描 ${lastChecked.slice(0,16).replace("T"," ")}` : "尚未扫描";
-  $("#upd-list").innerHTML = updRows.length ? updRows.map(r => `
-    <div class="row">
-      <span class="dot" style="background:var(--warn)"></span>
-      <span class="grow">${escapeHtml(r.bundle || r.name)}${r.extra > 1 ? ` <span class="dim">(${r.extra} skills)</span>` : ""}</span>
-      <span class="dim mono">→ ${escapeHtml(r.latest || "?")}</span>
-      <button class="action-btn" data-action="update" data-name="${escapeHtml(r.name)}">⟳ 更新</button>
-    </div>`).join("")
-    : `<div class="empty">✅ 没有待更新的上游</div>`;
 
   loadHealth();
   loadHot();
@@ -576,12 +555,12 @@ $("#hot-refresh").onclick = () => loadHot(true);
 
 let healthCache = null;
 async function loadHealth(force = false) {
-  if (healthCache && !force) { renderHealth(healthCache); syncIssueTile(healthCache.filter(i => i.owned && i.decision !== false)); return; }
+  if (healthCache && !force) { renderHealth(healthCache); syncIssueTile(healthCache.filter(isDefaultReportItem)); return; }
   try {
     const r = await api("/api/health");
     healthCache = r.issues || [];
     renderHealth(healthCache);
-    syncIssueTile(healthCache.filter(i => i.owned && i.decision !== false));
+    syncIssueTile(healthCache.filter(isDefaultReportItem));
   } catch (e) {
     $("#health-list").innerHTML = `<div class="empty">体检扫描失败: ${escapeHtml(e.message)}</div>`;
   }
@@ -610,7 +589,7 @@ function renderHealth(issues) {
     $("#health-list").innerHTML = `<div class="row"><span class="dot" style="background:var(--good)"></span><span class="grow">本次规则扫描未发现问题</span></div>`;
     return;
   }
-  const mine = issues.filter(i => i.owned && i.decision !== false);
+  const mine = issues.filter(isDefaultReportItem);
   const asideCount = issues.length - mine.length;
   const tierA = mine.filter(i => i.tier === "A").length;
   const tierB = mine.filter(i => i.tier === "B").length;
@@ -637,7 +616,6 @@ function updateStats() {
   $("#cnt-all").textContent = vals.length;
   $("#cnt-git").textContent = vals.filter(s => s.type === "git" || s.type === "bundle-symlink").length;
   $("#cnt-local").textContent = vals.filter(s => s.type === "local").length;
-  $("#cnt-upd").textContent = vals.filter(s => s.hasUpdate === true).length;
   $("#cnt-zh").textContent = vals.filter(s => !s.zh).length;
   $("#cnt-issues").textContent = vals.filter(hasIssue).length;
 }
@@ -665,7 +643,6 @@ function getFilteredSkills() {
   let entries = Object.entries(registry.skills || {});
   if (activeCategory === "__git__") entries = entries.filter(([,s]) => s.type === "git" || s.type === "bundle-symlink");
   else if (activeCategory === "__local__") entries = entries.filter(([,s]) => s.type === "local");
-  else if (activeCategory === "__updates__") entries = entries.filter(([,s]) => s.hasUpdate === true);
   else if (activeCategory === "__needs_zh__") entries = entries.filter(([,s]) => !s.zh);
   else if (activeCategory === "__issues__") entries = entries.filter(([,s]) => hasIssue(s));
   else if (activeCategory !== "__all__") entries = entries.filter(([,s]) => s.category === activeCategory);
@@ -751,11 +728,12 @@ function renderOrigin(s) {
   return `${sourceLabel}<span class="origin-link" style="font-style:italic">${escapeHtml(src.length > 26 ? src.slice(0, 26) + "…" : src)}</span>`;
 }
 
+// SkillHub 不去查上游有没有新版本，所以也不假装知道哪些「需要更新」。
+// git 追踪的条目一律给一个更新按钮，点了就是一次快进拉取。
 function renderActions(name, s) {
   if (s.localCanonical || s.type === "agent-specific") return "";
   if (s.type === "git" || s.type === "bundle-symlink") {
-    if (s.hasUpdate === true) return `<button class="action-btn" data-action="update" data-name="${escapeHtml(name)}" title="上游 ${escapeHtml(s.latestUpstream)}">⟳ 更新</button>`;
-    return "";
+    return `<button class="action-btn" data-action="update" data-name="${escapeHtml(name)}" title="执行 git pull --ff-only">⟳ 更新</button>`;
   }
   return "";
 }
@@ -768,7 +746,6 @@ function renderStatusBadges(s) {
   if (s.hasSkillMd && s.hasName === false) out.push('<span class="badge warnb" title="frontmatter 缺 name">⚠ 缺name</span>');
   if (s.hasSkillMd && s.hasDescription === false) out.push('<span class="badge warnb" title="frontmatter 缺 description">⚠ 缺描述</span>');
   if (s.localCanonical) out.push('<span class="badge canon" title="本地是权威版本">⭐</span>');
-  else if (s.hasUpdate === true) out.push(`<span class="badge tierB" title="上游 ${escapeHtml(s.latestUpstream)} 有新版本">🟠 有更新</span>`);
   return out.join("");
 }
 
@@ -909,9 +886,10 @@ async function openSync() {
     // Findings inside upstream-managed Skills are informational: editing them
     // locally gets undone by the next upgrade. They sit behind a fold so the
     // list shows what the user can actually act on.
-    const mine = issues.filter(i => i.owned && i.decision !== false);
-    const background = issues.filter(i => i.owned && i.decision === false);
-    const upstream = issues.filter(i => !i.owned);
+    const mine = issues.filter(isDefaultReportItem);
+    const rest = issues.filter(i => !isDefaultReportItem(i));
+    const background = rest.filter(i => i.owned && i.decision === false);
+    const upstream = rest.filter(i => !i.owned);
     const row = iss => `
       <div class="sync-item">
         <span class="badge tier${iss.tier}">Tier ${iss.tier}</span>

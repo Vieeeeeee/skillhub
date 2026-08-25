@@ -8,6 +8,7 @@ import {
   statSync,
   renameSync,
   unlinkSync,
+  rmdirSync,
 } from "node:fs";
 import { join, resolve, dirname, isAbsolute, relative, sep } from "node:path";
 import { randomUUID } from "node:crypto";
@@ -48,6 +49,59 @@ export function loadUserOverrides(overridesFile) {
 
 export function saveUserOverrides(overridesFile, overrides) {
   writeJsonAtomic(overridesFile, overrides);
+}
+
+const LOCK_TIMEOUT_MS = 5_000;
+const LOCK_STALE_MS = 30_000;
+
+function sleepSync(ms) {
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+}
+
+/**
+ * Serialises one read-modify-write cycle on the override file.
+ *
+ * Every writer loads the whole object, changes one corner of it, and writes it
+ * back. Two of them at once — an agent filling in Chinese blurbs one command
+ * per Skill, say — used to overwrite each other's edits while both reported
+ * success. `mkdir` is atomic on every platform this runs on, which is all the
+ * mutual exclusion this needs.
+ */
+export function withOverridesLock(overridesFile, fn) {
+  const lockPath = `${overridesFile}.lock`;
+  const deadline = Date.now() + LOCK_TIMEOUT_MS;
+  mkdirSync(dirname(lockPath), { recursive: true });
+
+  for (;;) {
+    try {
+      mkdirSync(lockPath);
+      break;
+    } catch (error) {
+      if (error?.code !== "EEXIST") throw error;
+      // A process killed mid-write leaves the directory behind. Reclaim it once
+      // it is clearly older than any real operation would take.
+      try {
+        if (Date.now() - statSync(lockPath).mtimeMs > LOCK_STALE_MS) {
+          rmdirSync(lockPath);
+          continue;
+        }
+      } catch {}
+      if (Date.now() >= deadline) {
+        throw new Error(
+          `Timed out waiting for ${lockPath}. Another SkillHub write is still running; retry in a moment.`
+        );
+      }
+      sleepSync(25);
+    }
+  }
+
+  try {
+    return fn();
+  } finally {
+    try {
+      rmdirSync(lockPath);
+    } catch {}
+  }
 }
 
 function writeJsonAtomic(file, value) {
@@ -296,11 +350,13 @@ export function buildRegistry(customHome = null) {
     const fmName = meta.fmName;
     const fmVersion = meta.version;
 
+    // The override file is the only store for a hand-written blurb, so it is
+    // also the only thing consulted here. Carrying the previous registry value
+    // forward made an erased blurb come back on the next scan while the command
+    // that erased it still reported success.
     let zh = "";
     if (zhOverrides[name]) {
       zh = zhOverrides[name];
-    } else if (prev.zh) {
-      zh = prev.zh;
     } else if (isChinese(desc)) {
       zh = desc.slice(0, 140);
     }
@@ -309,8 +365,11 @@ export function buildRegistry(customHome = null) {
     const agents = {};
     for (const [agKey, agCfg] of Object.entries(agentDirs)) {
       if (agCfg.type === "symlink") {
+        // existsSync already follows the link, so a broken one answers false.
+        // Accepting isSymlink here reported a dangling link as "this Agent can
+        // see it" while the sync plan called the same link broken.
         const targetAgentPath = join(agCfg.absPath, name);
-        agents[agKey] = existsSync(targetAgentPath) || isSymlink(targetAgentPath);
+        agents[agKey] = existsSync(targetAgentPath);
       } else if (agCfg.type === "native") {
         agents[agKey] = true;
       }
@@ -343,10 +402,12 @@ export function buildRegistry(customHome = null) {
       inferredSource: inferredSources[name] || "",
       upstreamPath: upstreamPaths[name] || "",
       localCanonical: localCanonical.has(name),
-      hasUpdate: Boolean(prev.hasUpdate),
-      latestUpstream: prev.latestUpstream || "",
+      // No hasUpdate / latestUpstream / lastChecked here: nothing ever queried
+      // an upstream, so the dashboard spent six components reporting "all up to
+      // date" from a field that was only ever copied forward as false. SkillHub
+      // does not check for upstream versions; `update` performs a fast-forward
+      // pull on demand and that is the whole of it.
       installedVersion: fmVersion,
-      lastChecked: prev.lastChecked || "",
       category: classifySkill(name, desc, categoryOverrides),
       description: desc,
       zh,
