@@ -57,6 +57,19 @@ Options:
 }
 
 /**
+ * Every write command answers in whichever form the caller asked for. Half of
+ * them used to ignore --json and print a sentence, so a script got a parse
+ * error with nothing to say why.
+ */
+function report(jsonMode, payload, humanLines) {
+  if (jsonMode) {
+    console.log(JSON.stringify({ ok: true, ...payload }, null, 2));
+    return;
+  }
+  for (const line of [].concat(humanLines)) console.log(line);
+}
+
+/**
  * The registry carries 27 fields per Skill so the dashboard can render every
  * column. An agent reading `scan --json` needs five of them, and the full
  * payload runs to roughly 95k tokens on a library of 200 Skills — enough to
@@ -279,6 +292,14 @@ async function main() {
       if (applyMode || fixBrokenMode) {
         const kind = applyMode ? "link" : "fix-broken-link";
         const selected = plan.filter((action) => action.kind === kind);
+        if (!jsonMode && selected.length === 0) {
+          console.log(
+            plan.length
+              ? `\n✅ 没有需要${applyMode ? "补的链接" : "清理的坏链接"}。计划里的 ${plan.length} 项都是另一类动作，这条命令不碰。\n`
+              : `\n✅ 全部已同步，没有可执行的动作。\n`
+          );
+          return;
+        }
         if (!jsonMode) console.log(`\nApplying ${selected.length} ${kind} action(s)...`);
         const result = selected.length ? applySyncPlan(selected) : { sessionId: null, applied: [] };
         if (selected.length) buildRegistry();
@@ -348,7 +369,7 @@ async function main() {
     case "skill-path": {
       // Printed so the install instructions never have to guess where npm put
       // the package. Works the same from a global install or a checkout.
-      console.log(join(ROOT_DIR, "skill"));
+      report(jsonMode, { command: "skill-path", path: join(ROOT_DIR, "skill") }, join(ROOT_DIR, "skill"));
       break;
     }
 
@@ -360,9 +381,10 @@ async function main() {
           console.error("Usage: skillhub agents <agentKey> on|off");
           process.exit(1);
         }
-        setAgentVisibility(key, state === "on");
+        const visibility = setAgentVisibility(key, state === "on");
         buildRegistry();
-        console.log(`✓ ${key} ${state === "on" ? "已启用" : "已隐藏"}`);
+        report(jsonMode, { command: "agents", agent: key, visible: state === "on", sessionId: visibility.sessionId },
+          `✓ ${key} ${state === "on" ? "已启用" : "已隐藏"}`);
         break;
       }
       const overrides = loadUserOverrides(paths.OVERRIDES_FILE);
@@ -434,9 +456,10 @@ async function main() {
         console.error('Usage: skillhub describe <skillName> "<中文介绍>"');
         process.exit(1);
       }
-      setMetadataOverride(name, { zh: text });
+      const described = setMetadataOverride(name, { zh: text });
       buildRegistry();
-      console.log(`✓ ${name} 的中文介绍已写入`);
+      report(jsonMode, { command: "describe", skill: name, zh: text, sessionId: described.sessionId },
+        `✓ ${name} 的中文介绍已写入`);
       break;
     }
 
@@ -447,9 +470,10 @@ async function main() {
         console.error('Usage: skillhub categorize <skillName> "<分类名>"');
         process.exit(1);
       }
-      setMetadataOverride(name, { category });
+      const categorized = setMetadataOverride(name, { category });
       buildRegistry();
-      console.log(`✓ ${name} 已归入「${category}」`);
+      report(jsonMode, { command: "categorize", skill: name, category, sessionId: categorized.sessionId },
+        `✓ ${name} 已归入「${category}」`);
       break;
     }
 
@@ -460,9 +484,10 @@ async function main() {
         console.error('Usage: skillhub note <skillName> "<备注>"');
         process.exit(1);
       }
-      setMetadataOverride(name, { notes: text });
+      const noted = setMetadataOverride(name, { notes: text });
       buildRegistry();
-      console.log(text ? `✓ ${name} 的备注已写入` : `✓ ${name} 的备注已清空`);
+      report(jsonMode, { command: "note", skill: name, notes: text, sessionId: noted.sessionId },
+        text ? `✓ ${name} 的备注已写入` : `✓ ${name} 的备注已清空`);
       break;
     }
 
@@ -480,10 +505,12 @@ async function main() {
         console.error("It moves the Skill to ~/.agents/_trash/ and unlinks it from every agent.");
         process.exit(1);
       }
-      removeSkill(name);
+      const removed = removeSkill(name);
       buildRegistry();
-      console.log(`✓ 已卸载 ${name}`);
-      console.log(`  实体在 ~/.agents/_trash/，用 skillhub trash 查看，skillhub undo 可连链接一起还原`);
+      report(jsonMode, { command: "remove", skill: name, ...removed }, [
+        `✓ 已卸载 ${name}`,
+        `  实体在 ~/.agents/_trash/，用 skillhub trash 查看，skillhub undo 可连链接一起还原`,
+      ]);
       break;
     }
 
@@ -496,7 +523,8 @@ async function main() {
         }
         const r = restoreTrash(entry);
         buildRegistry();
-        console.log(`✓ 已恢复 ${r.restored}，各 agent 的链接需要重新同步`);
+        report(jsonMode, { command: "trash-restore", ...r },
+          `✓ 已恢复 ${r.restored}，各 agent 的链接需要重新同步`);
         break;
       }
       const items = listTrash();
@@ -508,7 +536,17 @@ async function main() {
       for (const it of items) {
         console.log(`  ${it.entry.padEnd(46)} ${it.mtime.slice(0, 16).replace("T", " ")}`);
       }
-      if (items.length) console.log(`\n  恢复： skillhub trash restore <上面的名字>`);
+      if (items.length) {
+        console.log(`\n  恢复： skillhub trash restore <上面的名字>`);
+        // The trash holds real Skill data, so nothing here is deleted on a
+        // schedule. Saying how old the pile is turns "it only ever grows" into
+        // something the user can act on.
+        const monthAgo = Date.now() - 30 * 86400 * 1000;
+        const stale = items.filter((it) => new Date(it.mtime).getTime() < monthAgo).length;
+        if (stale) {
+          console.log(`  其中 ${stale} 项超过 30 天。回收站不会自动清空，确认不要了就删 ~/.agents/_trash/ 下对应目录`);
+        }
+      }
       console.log("");
       break;
     }
@@ -522,7 +560,10 @@ async function main() {
       }
       const r = toggleAgent(skillName, agentKey, true);
       buildRegistry();
-      console.log(`✓ Linked "${skillName}" to agent "${agentKey}"`);
+      report(jsonMode, { command: "link", skill: skillName, agent: agentKey, sessionId: r.sessionId }, [
+        `✓ Linked "${skillName}" to agent "${agentKey}"`,
+        `  备份会话 ${r.sessionId}（skillhub undo 可撤销）`,
+      ]);
       break;
     }
 
@@ -535,7 +576,10 @@ async function main() {
       }
       const r = toggleAgent(skillName, agentKey, false);
       buildRegistry();
-      console.log(`✓ Unlinked "${skillName}" from agent "${agentKey}"`);
+      report(jsonMode, { command: "unlink", skill: skillName, agent: agentKey, sessionId: r.sessionId }, [
+        `✓ Unlinked "${skillName}" from agent "${agentKey}"`,
+        `  备份会话 ${r.sessionId}（skillhub undo 可撤销）`,
+      ]);
       break;
     }
 
@@ -547,7 +591,10 @@ async function main() {
       }
       const r = updateSkill(skillName);
       buildRegistry();
-      console.log(`✓ Updated "${skillName}": ${r.output}`);
+      report(jsonMode, { command: "update", skill: skillName, ...r }, [
+        `✓ Updated "${skillName}": ${r.output}`,
+        r.sessionId ? `  备份会话 ${r.sessionId}（skillhub undo 可撤销）` : "",
+      ].filter(Boolean));
       break;
     }
 
