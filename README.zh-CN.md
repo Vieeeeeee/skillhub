@@ -122,10 +122,10 @@ npm 版升级用 `npm install --global @wsiwsii/skillhub@latest`；源码版用 
 ```text
 ~/.agents/skills/                     Skill 唯一真身或指向 bundle 的链接
 ~/.agents/_repos/                     统一管理的多 Skill 仓库
-~/.agents/_trash/                     本地回收站
+~/.agents/_trash/                     本地回收站，不会自动清空（里面是真实 Skill 数据）
 ~/.skillhub/registry.json             自动生成的清单缓存
 ~/.skillhub/overrides.json            你写的中文介绍、分类和 Agent 选择
-~/.skillhub/backups/                  支持回滚操作的 manifest
+~/.skillhub/backups/                  支持回滚操作的 manifest，只保留最近 100 次
 ~/.skillhub/cache/                    版本检查和 GitHub 热榜的缓存，删了会重新抓
 ~/.skillhub/session                   面板令牌，POSIX 下权限为 0600
 
@@ -228,7 +228,9 @@ skill-path         打印本包的 skill/ 目录位置
 version            打印当前版本号
 check-update       检查 SkillHub 是否有新版本
 
---json             在支持的命令中输出 JSON
+--json             输出 JSON。写操作（describe / categorize / note / link / unlink /
+                   update / remove / trash restore / agents on|off）会返回结果和备份
+                   会话号；scan / pending / doctor / sync / backups / trash 返回数据
 --apply            配合 sync：只补全缺失链接
 --fix-broken       配合 sync：只移除损坏链接
 --all              配合 doctor：把随上游更新的 Skill 的结果也列出来
@@ -240,10 +242,10 @@ check-update       检查 SkillHub 是否有新版本
 
 | 范围 | 状态 | 说明 |
 |---|---|---|
-| Node.js | 支持 20+ | CI 当前覆盖 Node 20、22。 |
+| Node.js | 支持 20+ | CI 矩阵为 Node 20、22、24。24 是发版流水线实际执行测试的版本，刚补进矩阵，还没有历史绿灯记录。 |
 | macOS | 本机已验证 | 源码测试和本地打包安装后的面板启动测试已通过。 |
-| Linux | CI 已验证 | 当前 GitHub Actions 在 Node.js 20/22 下通过；使用前仍需核对本机 Agent 路径。 |
-| Windows | CI 已验证 | 当前 GitHub Actions 在 Node.js 20/22 下通过。Junction 行为仍受本机文件系统策略和权限影响，建议先看 `sync`，再决定是否 `--apply`。 |
+| Linux | CI 已验证 | 最近一次 GitHub Actions 在 Node.js 20/22 下通过（24 已加入矩阵，等下一次运行）；使用前仍需核对本机 Agent 路径。 |
+| Windows | CI 已验证 | 最近一次 GitHub Actions 在 Node.js 20/22 下通过（24 已加入矩阵，等下一次运行）。Junction 行为仍受本机文件系统策略和权限影响，建议先看 `sync`，再决定是否 `--apply`。 |
 | Claude、Gemini、Hermes | 链接适配 | 路径可在 `rules/agents.json` 调整。 |
 | Codex | 原生适配 | 使用配置中的共享 Skills 目录；请按本机 Codex 版本复核。 |
 | Cursor | 实验性 | 用于验证配置驱动的 Agent 扩展，目前不宣称完整适配。 |
@@ -262,6 +264,8 @@ check-update       检查 SkillHub 是否有新版本
 | Undo 报失败 | 逐条读返回的日志。失败的 manifest 会保留可重试，且不会覆盖后来出现的新路径。 |
 | Git 更新失败 | 本地改动、认证、远端或非快进历史的问题，直接用 Git 解决。SkillHub 有意只用 `--ff-only`。 |
 | 热榜或版本检查失败 | GitHub 离线或触发限流。本地清单功能不受影响。 |
+| 想关掉面板 | 回到启动它的终端按 Ctrl-C。终端已经关了就 `lsof -ti:7777 \| xargs kill`；Windows 用 `netstat -ano \| findstr :7777` 找到 PID 再 `taskkill /PID <pid> /F`。 |
+| 回收站占地方 | 里面是真实 Skill 数据，SkillHub 不会自动清。确认不要了就自己删 `~/.agents/_trash/` 下对应的目录。 |
 
 ## 开发与验证
 

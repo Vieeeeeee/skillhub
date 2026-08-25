@@ -122,10 +122,10 @@ Update the npm CLI with `npm install --global @wsiwsii/skillhub@latest`. Update 
 ```text
 ~/.agents/skills/                     canonical Skill directories or links
 ~/.agents/_repos/                     managed multi-Skill repositories
-~/.agents/_trash/                     locally removed Skill data
+~/.agents/_trash/                     locally removed Skill data (never cleared automatically)
 ~/.skillhub/registry.json             generated inventory cache
 ~/.skillhub/overrides.json            your blurbs, categories, and Agent choices
-~/.skillhub/backups/                  manifests for supported reversible operations
+~/.skillhub/backups/                  manifests for supported reversible operations (newest 100 kept)
 ~/.skillhub/cache/                    version check and GitHub leaderboard cache
 ~/.skillhub/session                   local dashboard token (mode 0600 on POSIX)
 
@@ -227,7 +227,10 @@ skill-path         Print this package's skill/ directory
 version            Print the installed version
 check-update       Check whether a newer SkillHub release exists
 
---json             Print machine-readable output where supported
+--json             Print machine-readable output. Write commands (describe, categorize,
+                   note, link, unlink, update, remove, trash restore, agents on|off)
+                   return the result and the backup session id; scan, pending, doctor,
+                   sync, backups and trash return data
 --apply            With sync: create missing links only
 --fix-broken       With sync: remove broken links only
 --all              With doctor: also list background notes and upstream-managed findings
@@ -239,10 +242,10 @@ check-update       Check whether a newer SkillHub release exists
 
 | Area | Status | Notes |
 |---|---|---|
-| Node.js | Supported: 20+ | CI matrix currently targets Node 20 and 22. |
+| Node.js | Supported: 20+ | The CI matrix covers Node 20, 22 and 24. Node 24 is the version the release pipeline runs the suite on; it was just added and has no green run behind it yet. |
 | macOS | Locally verified | Source tests and packed global-install/dashboard smoke test passed. |
-| Linux | CI verified | The current GitHub Actions run passes on Node.js 20 and 22; verify your local Agent paths. |
-| Windows | CI verified | The current GitHub Actions run passes on Node.js 20 and 22. Junction behavior still depends on local filesystem policy and permissions; review `sync` before `--apply`. |
+| Linux | CI verified | The latest GitHub Actions run passes on Node.js 20 and 22 (24 is in the matrix, awaiting its first run); verify your local Agent paths. |
+| Windows | CI verified | The latest GitHub Actions run passes on Node.js 20 and 22 (24 is in the matrix, awaiting its first run). Junction behavior still depends on local filesystem policy and permissions; review `sync` before `--apply`. |
 | Claude, Gemini, Hermes | Link adapters | Paths are configurable in `rules/agents.json`. |
 | Codex | Native adapter | Uses the configured shared Skills directory; verify behavior against your installed Codex version. |
 | Cursor | Experimental | Included to exercise configuration-driven adapters; not claimed as fully verified. |
@@ -261,6 +264,8 @@ check-update       Check whether a newer SkillHub release exists
 | Undo reports a failure | Read each returned log. SkillHub keeps a failed manifest retryable and will not overwrite a newer replacement path. |
 | Git update fails | Resolve local changes, authentication, remote, or non-fast-forward history directly with Git. SkillHub intentionally uses `--ff-only`. |
 | Hot list or version check fails | GitHub may be offline or rate-limited. Core local inventory continues to work. |
+| Stopping the dashboard | Press Ctrl-C in the terminal that started it. If that terminal is gone: `lsof -ti:7777 \| xargs kill`, or on Windows `netstat -ano \| findstr :7777` then `taskkill /PID <pid> /F`. |
+| The trash is taking up space | It holds real Skill data and is never cleared automatically. Delete the directories under `~/.agents/_trash/` yourself once you are sure. |
 
 ## Development
 

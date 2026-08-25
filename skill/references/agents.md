@@ -12,7 +12,9 @@
 | Hermes | `~/.hermes/skills/claude-skills` | 需要软链 |
 | Cursor | `~/.cursor/skills` | 需要软链，实验性 |
 
-Codex 那条最容易搞错：**它直接读统一管理目录**，所以面板上它永远显示"全部可见"，也没有开关。看到有人问"为什么 Codex 那列不能点"，答案是它不需要。
+Codex 那条最容易搞错：**它直接读统一管理目录**，所以面板上它永远显示"全部可见"。逐个 skill 的勾选格对它是灰的——不是坏了，是没有链接可建可删。
+
+但整个 agent 的开关对它照样有效：`skillhub agents codex off` 之后，Codex 那一列、它的触发词、同步计划里跟它有关的部分都不再出现。这是"我不用这个 agent，别在界面上占位置"，不是"不让 Codex 读到 skill"——Codex 读不读取决于它自己扫不扫那个目录，SkillHub 管不着，也没打算管。
 
 Codex 还会扫仓库级的 `.agents/skills` 和 `~/.codex/skills`。同名的会自动去重，所以往 `~/.codex/skills` 里补软链是多余的。
 
