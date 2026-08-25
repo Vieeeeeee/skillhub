@@ -307,7 +307,7 @@ export function buildRegistry(customHome = null) {
 
   const skills = {};
 
-  const addSkillEntry = (name, entryPath, { agentSpecific = null } = {}) => {
+  const addSkillEntry = (name, entryPath, { agentSpecific = null, agentOnly = null } = {}) => {
     const prev = prevSkills[name] || {};
     const symlink = isSymlink(entryPath);
     let stype = "local";
@@ -400,7 +400,16 @@ export function buildRegistry(customHome = null) {
       }
     }
 
-    if (agentSpecific) {
+    if (agentOnly) {
+      // Exactly one Agent can read this, because the body sits in that Agent's
+      // own folder. The native-agent branch below would otherwise claim Codex
+      // sees a directory that lives under ~/.claude/skills.
+      for (const [agKey, agCfg] of Object.entries(agentDirs)) {
+        if (!isAgentVisible(agCfg, agKey, overrides)) continue;
+        agents[agKey] = false;
+      }
+      agents[agentOnly] = true;
+    } else if (agentSpecific) {
       for (const [agentKey, variantPath] of Object.entries(agentSpecific)) {
         agents[agentKey] = existsSync(variantPath);
       }
@@ -426,7 +435,10 @@ export function buildRegistry(customHome = null) {
       Boolean(fmName) && fmName !== name && acceptedAliases[name] !== fmName && !isAliasLink;
 
     skills[name] = {
-      type: agentSpecific ? "agent-specific" : stype,
+      type: agentOnly ? "agent-only" : agentSpecific ? "agent-specific" : stype,
+      // Which Agent's folder holds the body. SkillHub does not manage it: every
+      // write refuses, and the sync plan proposes nothing for it.
+      ...(agentOnly ? { agentOnly } : {}),
       path: entryPath,
       bundle,
       origin,
@@ -468,6 +480,9 @@ export function buildRegistry(customHome = null) {
       triggers: Object.fromEntries(
         Object.entries(agentDirs)
           .filter(([agentKey, cfg]) => isAgentVisible(cfg, agentKey, overrides))
+          // An Agent that cannot read the Skill has no trigger word for it.
+          // Listing one told the user to type a command that does nothing.
+          .filter(([agentKey]) => !agentOnly || agentKey === agentOnly)
           .map(([agentKey, cfg]) => [
             agentKey,
             `${cfg.triggerPrefix || "/"}${cfg.type === "native" ? fmName || name : name}`,
@@ -529,6 +544,37 @@ export function buildRegistry(customHome = null) {
     }
     const firstExisting = Object.values(variants).find((candidate) => existsSync(candidate));
     if (firstExisting) addSkillEntry(name, firstExisting, { agentSpecific: variants });
+  }
+
+  // Skills that only exist inside an Agent's own folder. Codex's bundled Skill
+  // Creator installs into ~/.codex/skills, and a Skill made there is real, is
+  // loadable, and is the user's — it just cannot be shared. An inventory that
+  // calls itself complete has to show it, marked for what it is, rather than
+  // mentioning it only in the health report.
+  for (const [agentKey, agCfg] of Object.entries(agentDirs)) {
+    if (!isAgentVisible(agCfg, agentKey, overrides)) continue;
+    for (const dir of [agCfg.absPath, agCfg.secondaryAbsPath]) {
+      // The native Agent's primary directory is the SSOT itself.
+      if (!dir || dir === paths.SSOT || !existsSync(dir)) continue;
+      let entries;
+      try {
+        entries = readdirSync(dir, { withFileTypes: true });
+      } catch {
+        continue;
+      }
+      for (const entry of entries) {
+        const name = entry.name;
+        if (name.startsWith(".") || name.startsWith("_")) continue;
+        if (skills[name]) continue;
+        if (!entry.isDirectory() || entry.isSymbolicLink()) continue;
+        const fullPath = join(dir, name);
+        if (!existsSync(join(fullPath, "SKILL.md"))) continue;
+        // A copy under a name some other tool maintains is not ours to list
+        // twice; that rule already governs the sync plan.
+        if (managedSkills[name]) continue;
+        addSkillEntry(name, fullPath, { agentOnly: agentKey });
+      }
+    }
   }
 
   // Build categories map

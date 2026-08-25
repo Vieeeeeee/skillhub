@@ -424,7 +424,7 @@ async function main() {
         // A Skill whose body lives in an Agent folder — a deliberate two-sided
         // version, or a dangling link — used to appear here and then fail on
         // the very next command, with no way for the caller to know why.
-        if (s.broken || s.type === "agent-specific") continue;
+        if (s.broken || s.type === "agent-specific" || s.type === "agent-only") continue;
         const needsZh = !s.zh;
         const needsCategory = s.category === UNCLASSIFIED;
         if (!needsZh && !needsCategory) continue;

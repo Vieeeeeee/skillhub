@@ -532,7 +532,9 @@ export function runDoctor(registry, customHome = null) {
   // 2. Skill-level inspection. Covers SSOT Skills and, read-only, real Skill
   // directories that still live inside an Agent folder.
   for (const [name, s] of Object.entries(skills)) {
-    inspectSkill(name, s, issues);
+    // These now reach the report through the inventory rather than the sync
+    // plan, and the report still has to say where the directory actually is.
+    inspectSkill(name, s, issues, s.agentOnly ? `${s.agentOnly} 目录` : "");
   }
   for (const entry of collectAgentResidentSkills(syncActions, skills)) {
     inspectSkill(entry.name, entry.meta, issues, entry.location);

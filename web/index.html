@@ -207,6 +207,7 @@ tbody td { padding: 8px 6px; vertical-align: top; }
 .tag.local { background: rgba(154,167,186,.12); color: var(--ink-2); }
 .tag.symlink { background: rgba(201,133,0,.15); color: #e0a53e; }
 .tag.agentspec { background: rgba(230,103,103,.15); color: var(--s5); }
+.tag.agentonly { background: rgba(201,133,0,.15); color: #e0a53e; }
 .badge { display: inline-block; padding: 1px 6px; border-radius: 3px; font-size: 10px; margin-left: 4px; }
 .badge.tierA { background: rgba(208,59,59,.22); color: #f87171; border: 1px solid rgba(208,59,59,.4); }
 .badge.tierB { background: rgba(250,178,25,.20); color: #fde047; border: 1px solid rgba(250,178,25,.35); }
@@ -548,8 +549,10 @@ function renderDash() {
   const n = vals.length;
   const git = vals.filter(s => s.type === "git" || s.type === "bundle-symlink").length;
   const issues = vals.filter(hasIssue).length;   // 占位，体检结果回来后由 syncIssueTile 覆盖
-  const needZh = vals.filter(s => !s.zh).length;
-  const needCat = vals.filter(s => s.category === UNCLASSIFIED).length;
+  // 只统计写得进去的：仅某个 Agent 可见的实体不在统一管理目录，改不了。
+  const writable = vals.filter(s => s.type !== "agent-only" && s.type !== "agent-specific" && !s.broken);
+  const needZh = writable.filter(s => !s.zh).length;
+  const needCat = writable.filter(s => s.category === UNCLASSIFIED).length;
 
   // 每个 agent 一个格子会把首屏挤满，而这几个数字几乎不变。收成一个：
   // 有多少 skill 至少能被一个需要软链的 agent 读到。
@@ -789,7 +792,9 @@ function renderTable() {
     const trigHtml = s.nameMismatch
       ? `<span class="warnt" title="frontmatter name 与目录名不一致">${escapeHtml(triggerText)}</span>`
       : escapeHtml(triggerText);
-    const typeLabel = s.type === "agent-specific" ? "双版本" : (s.type === "local" ? "本地文件" : s.type);
+    const typeLabel = s.type === "agent-specific" ? "双版本"
+      : s.type === "agent-only" ? `仅 ${escapeHtml(shortAgentName(allAgents().find(a => a.key === s.agentOnly) || { key: s.agentOnly }))}`
+      : (s.type === "local" ? "本地文件" : s.type);
     tr.innerHTML = `
       <td>
         <div class="skill-name"><a href="#" data-action="readme" data-name="${escapeHtml(name)}">${escapeHtml(name)}</a>${renderStatusBadges(s)}</div>
@@ -797,15 +802,17 @@ function renderTable() {
         <div class="commit-mini">${escapeHtml(s.category)}</div>
       </td>
       <td>
-        <div class="skill-zh editable" data-action="edit-zh" data-name="${escapeHtml(name)}">
+        ${s.type === "agent-only"
+          ? `<div class="skill-zh" title="它的实体不在统一管理目录里，SkillHub 只读不写">${s.zh ? escapeHtml(s.zh) : '<i style="opacity:.5">移进统一管理目录后才能补介绍</i>'}</div>`
+          : `<div class="skill-zh editable" data-action="edit-zh" data-name="${escapeHtml(name)}">
           ${s.zh ? escapeHtml(s.zh) : '<i style="opacity:.5">点击补充中文介绍…</i>'}
-        </div>
+        </div>`}
         ${s.notes ? `<div class="commit-mini" style="margin-top:3px">📝 ${escapeHtml(s.notes)}</div>` : ""}
       </td>
-      <td><span class="tag ${s.type === 'bundle-symlink' ? 'bundle' : (s.type === 'agent-specific' ? 'agentspec' : s.type)}">${escapeHtml(typeLabel)}</span></td>
+      <td><span class="tag ${s.type === 'bundle-symlink' ? 'bundle' : s.type === 'agent-specific' ? 'agentspec' : s.type === 'agent-only' ? 'agentonly' : s.type}"${s.type === 'agent-only' ? ` title="实体在 ${escapeHtml(s.path)}，只有这个 Agent 读得到。SkillHub 不改它，移进统一管理目录后才能补中文介绍和分类"` : ""}>${escapeHtml(typeLabel)}</span></td>
       <td>${renderOrigin(s)}</td>
       ${configuredAgents().map(agent => `<td class="agent-cell">${renderAgentCell(name, s, agent)}</td>`).join("")}
-      <td>${renderActions(name, s)}${s.type === "agent-specific" ? "" : `<button class="action-btn" data-action="remove" data-name="${escapeHtml(name)}" title="卸载">×</button>`}</td>
+      <td>${renderActions(name, s)}${s.type === "agent-specific" || s.type === "agent-only" ? "" : `<button class="action-btn" data-action="remove" data-name="${escapeHtml(name)}" title="卸载">×</button>`}</td>
     `;
     body.appendChild(tr);
   }
@@ -831,6 +838,11 @@ function triggerSummary(name, s) {
 }
 
 function renderAgentCell(name, s, agent) {
+  if (s.type === "agent-only") {
+    return s.agents[agent.key]
+      ? '<span class="native-dot" title="实体就在这个 Agent 的目录里">●</span>'
+      : '<span style="opacity:.3" title="它的实体在别的 Agent 目录里，这里建不了链接">—</span>';
+  }
   if (s.type === "agent-specific") {
     return s.agents[agent.key] ? '<span class="native-dot" title="agent 专属版本">●</span>' : '<span style="opacity:.3">—</span>';
   }

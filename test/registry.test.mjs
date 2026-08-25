@@ -245,3 +245,46 @@ test("the registry drops fields nothing reads", (t) => {
   // realPath here is correct. The contract is that it is never a duplicate.
   assert.notEqual(entry.realPath, entry.path, "the same string must not be stored twice");
 });
+
+test("a Skill only one Agent can read is listed, marked, and never written to", (t) => {
+  const tmp = mkdtempSync(join(tmpdir(), "skillhub-agent-only-"));
+  t.after(() => rmSync(tmp, { recursive: true, force: true }));
+
+  const ssot = join(tmp, ".agents", "skills");
+  mkdirSync(join(ssot, "shared"), { recursive: true });
+  writeFileSync(join(ssot, "shared", "SKILL.md"), "---\nname: shared\ndescription: d\n---\n");
+
+  // Codex's bundled Skill Creator installs here. The Skill is real and
+  // loadable; it just cannot be shared until it moves.
+  const codexOnly = join(tmp, ".codex", "skills", "made-in-codex");
+  mkdirSync(codexOnly, { recursive: true });
+  writeFileSync(join(codexOnly, "SKILL.md"), "---\nname: made-in-codex\ndescription: makes images\n---\n");
+
+  const reg = buildRegistry(tmp);
+  const entry = reg.skills["made-in-codex"];
+  assert.ok(entry, "an inventory that claims to hold every Skill has to hold this one");
+  assert.equal(entry.type, "agent-only");
+  assert.equal(entry.agentOnly, "codex");
+  assert.equal(entry.agents.codex, true);
+  assert.equal(entry.path, codexOnly, "the row points at where the body really is");
+  assert.notEqual(entry.category, "其他 / 未分类", "it is classified like any other Skill");
+  // An Agent that cannot read it has no trigger word for it, and showing one
+  // told the user to type a command that does nothing.
+  assert.deepEqual(Object.keys(entry.triggers), ["codex"]);
+  assert.equal(entry.triggers.codex, "$made-in-codex");
+
+  // Nothing here writes to it, and the refusal says why rather than reading
+  // like the Skill went missing.
+  assert.throws(
+    () => setMetadataOverride("made-in-codex", { zh: "试试" }, tmp),
+    /read-only here/
+  );
+
+  // A copy under a name the managed folder already knows stays out of the list.
+  const dupe = join(tmp, ".codex", "skills", "shared");
+  mkdirSync(dupe, { recursive: true });
+  writeFileSync(join(dupe, "SKILL.md"), "---\nname: shared\ndescription: d\n---\n");
+  const again = buildRegistry(tmp);
+  assert.equal(again.skills.shared.type, "local", "the managed copy stays the one that counts");
+  assert.equal(Object.keys(again.skills).length, 2);
+});

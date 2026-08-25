@@ -192,7 +192,13 @@ export function setMetadataOverride(skillName, { zh, notes, category }, customHo
   assertManagedHomePath(skillPath, paths, true);
   assertManagedHomePath(paths.OVERRIDES_FILE, paths, false);
   if (!existsSync(skillPath) || !existsSync(join(skillPath, "SKILL.md"))) {
-    throw new Error(`Skill "${skillName}" not found or missing its root SKILL.md at ${skillPath}`);
+    // A Skill that only lives in an Agent's own folder is listed, but nothing
+    // here writes to it. Saying so beats a path that reads like it went missing.
+    throw new Error(
+      `Skill "${skillName}" is not in ${paths.SSOT}. ` +
+        `A Skill that lives only in an Agent's own folder is read-only here — ` +
+        `move it into the managed folder first if you want to describe or categorise it.`
+    );
   }
   assertWithinLength(zh, MAX_BLURB_CHARS, "Chinese blurb");
   assertWithinLength(notes, MAX_NOTES_CHARS, "note");

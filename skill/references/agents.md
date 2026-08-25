@@ -18,7 +18,7 @@ Codex 那条最容易搞错：**它直接读统一管理目录**，所以面板�
 
 Codex 还会扫仓库级的 `.agents/skills` 和 `~/.codex/skills`。往 `~/.codex/skills` 里补软链是多余的——统一管理目录它本来就读。
 
-`~/.codex/skills` 还有一个身份：**Codex 自己的 Skill Creator 默认装在那儿**（`$CODEX_HOME/skills/<name>`）。所以在 Codex 里现做的 skill，只有 Codex 看得见，别家 agent 一无所知。同步计划会把这类目录报成 `report-agent-orphan`，搬进 `~/.agents/skills` 就能共享。名字在统一管理目录里已经存在的副本不报——那是别的工具自己维护的拷贝，动它会在下次升级时被覆盖回去。
+`~/.codex/skills` 还有一个身份：**Codex 自己的 Skill Creator 默认装在那儿**（`$CODEX_HOME/skills/<name>`）。所以在 Codex 里现做的 skill，只有 Codex 看得见，别家 agent 一无所知。这类 skill 会出现在清单里，类型标成「仅 <Agent>」，触发词只显示那个 agent 的——它的实体不在统一管理目录，SkillHub 只读不写，补中文介绍和分类都得先把它搬进 `~/.agents/skills`。同步计划里也会有一条 `report-agent-orphan`。名字在统一管理目录里已经存在的副本不报——那是别的工具自己维护的拷贝，动它会在下次升级时被覆盖回去。
 
 ## 触发名的两套规则
 

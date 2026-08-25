@@ -74,7 +74,14 @@ test("doctor inspects Skills that live in an Agent directory without touching th
   writeFileSync(join(nameless, "SKILL.md"), "# no frontmatter at all\n");
 
   const reg = buildRegistry(tmp);
-  assert.equal(Object.keys(reg.skills).length, 0, "nothing is managed in the SSOT yet");
+  // Nothing is in the managed folder, but the inventory still lists both — a
+  // Skill that only one Agent can read is still a Skill the user owns. They are
+  // marked for what they are, and nothing here writes to them.
+  assert.deepEqual(Object.keys(reg.skills).sort(), ["leaky", "nameless"]);
+  assert.equal(reg.skills.leaky.type, "agent-only");
+  assert.equal(reg.skills.leaky.agentOnly, "claude");
+  // Only Agents in use appear, and exactly one of them can read this.
+  assert.deepEqual(reg.skills.leaky.agents, { claude: true });
 
   const issues = runDoctor(reg, tmp);
 

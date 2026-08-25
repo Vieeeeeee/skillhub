@@ -107,7 +107,7 @@ Update the npm CLI with `npm install --global @wsiwsii/skillhub@latest`. Update 
 
 | Capability | Result |
 |---|---|
-| Inventory | Lists Skills, sources, categories, Agent visibility, and structural metadata. |
+| Inventory | Lists Skills, sources, categories, Agent visibility, and structural metadata. A Skill that exists only inside one Agent's own folder is listed too, marked `仅 <Agent>` — SkillHub does not manage it, so the row is read-only and carries only that Agent's trigger word. |
 | Labels and categories | Rules give every Skill a first-pass category. `pending` lists what is still unlabelled; `describe` and `categorize` write the rest. Both touch only SkillHub's own config, never Skill contents. |
 | Link management | Creates or removes Agent links without replacing a real directory. |
 | Agents in use | An Agent you do not use is hidden from the dashboard and left out of sync planning. Hiding never deletes existing links, and an Agent whose directory does not exist is hidden by default. |

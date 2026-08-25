@@ -107,7 +107,7 @@ npm 版升级用 `npm install --global @wsiwsii/skillhub@latest`；源码版用 
 
 | 能力 | 实际结果 |
 |---|---|
-| 统一清单 | 展示 Skill、来源、分类、Agent 可见状态和结构信息。 |
+| 统一清单 | 展示 Skill、来源、分类、Agent 可见状态和结构信息。只存在于某个 Agent 自己目录里的 Skill 也在列表里，标成「仅 <Agent>」——它不归 SkillHub 管，所以只读，触发词也只显示那个 Agent 的。 |
 | 中文介绍与分类 | 规则先把大头粗分一遍；`pending` 列出还没补的，`describe` 和 `categorize` 把剩下的写回去。两者只写 SkillHub 自己的配置，不碰 Skill 内容。 |
 | Agent 启用 | 为需要链接的 Agent 创建或移除链接，不会把真实目录当链接删除。 |
 | 在用的 Agent | 没在用的 Agent 可以隐藏，不再出现在看板和同步计划里。隐藏不会删除已有链接，目录不存在的 Agent 默认就不显示。 |
