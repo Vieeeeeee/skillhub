@@ -4,7 +4,7 @@ All notable changes to SkillHub will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.4.0] - 2026-08-25
 
 An adversarial pre-release review of the whole project. The dominant defect was
 one shape repeated in many places: reporting confident success for work that had
@@ -97,5 +97,6 @@ First-contact fixes, after watching a real session start with `skillhub: command
 - Undo is best effort and cannot cover an unexpected crash between a filesystem change and its manifest write.
 - Cursor support remains experimental; Windows junction behavior depends on local policy and permissions.
 
+[0.4.0]: https://github.com/Vieeeeeee/skillhub/releases/tag/v0.4.0
 [0.3.0]: https://github.com/Vieeeeeee/skillhub/releases/tag/v0.3.0
 [0.2.0]: https://github.com/Vieeeeeee/skillhub/releases/tag/v0.2.0
