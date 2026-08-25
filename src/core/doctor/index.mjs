@@ -395,6 +395,14 @@ function inspectSkill(name, s, issues, location = "") {
   for (const issue of found) {
     if (location) issue.location = location;
     issue.owned = owned;
+    // A Skill reached through a link out of the managed home can be read and
+    // reported on, but every write refuses it on path-guard grounds. Saying so
+    // in the finding beats letting the user discover it as a Security
+    // Exception three clicks later.
+    if (s.outsideManagedHome) {
+      issue.outsideManagedHome = true;
+      issue.recommendation += "（这个 Skill 的实体在 SkillHub 的管理范围之外，只能手动处理）";
+    }
     issues.push(issue);
   }
 }

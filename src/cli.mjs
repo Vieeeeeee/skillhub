@@ -6,7 +6,10 @@ import { buildRegistry, loadUserOverrides } from "./core/registry.mjs";
 import { buildSyncPlan, applySyncPlan } from "./core/sync.mjs";
 import { runDoctor, isDefaultReportItem } from "./core/doctor/index.mjs";
 import { undoLastBackup, listBackups } from "./core/backup.mjs";
-import { toggleAgent, removeSkill, updateSkill, setMetadataOverride, setAgentVisibility } from "./core/ops.mjs";
+import {
+  toggleAgent, removeSkill, updateSkill, setMetadataOverride, setAgentVisibility,
+  listTrash, restoreTrash,
+} from "./core/ops.mjs";
 import { checkSelfUpdate, getCurrentVersion } from "./core/update-check.mjs";
 import { startServer, PORT, HOST } from "../server/server.mjs";
 
@@ -36,6 +39,10 @@ Commands:
   pending            List skills still missing a Chinese blurb or a category
   describe <n> <text>  Write the Chinese blurb for a skill
   categorize <n> <cat> Set the category for a skill
+  note <n> <text>    Write a personal note on a skill
+  remove <n> --yes   Move a skill to the trash (reversible)
+  trash [restore <e>]  List the trash, or restore an entry from it
+  check-update       Check whether a newer SkillHub has been published
 
 Options:
   --json             Output raw JSON result
@@ -45,6 +52,7 @@ Options:
   --port <number>    Specify server port (default: 7777)
   --no-open          Do not automatically open browser
   --all              With doctor: also list findings in upstream-managed skills
+  --yes              Required by remove, which moves data to the trash
 `);
 }
 
@@ -86,7 +94,7 @@ function compactRegistry(reg) {
 // 未知参数一律报错。静默忽略会让用户以为动作生效了，实际什么都没发生。
 const KNOWN_OPTIONS = new Set([
   "--json", "--apply", "--fix-broken", "--port", "--no-open", "--all", "--compact",
-  "--help", "-h", "--version", "-v",
+  "--yes", "--help", "-h", "--version", "-v",
 ]);
 
 // 取值型选项：它后面那个词是值，不是选项。
@@ -95,7 +103,8 @@ const VALUE_OPTIONS = new Set(["--port"]);
 // 位置参数是用户自己写的文本——分类名、中文介绍、skill 名。这些完全可以以
 // 短横线开头，扫描时必须跳过，否则 `categorize x "-实验"` 会被当成未知选项。
 const POSITIONAL_ARG_COUNT = {
-  describe: 2, categorize: 2, link: 2, unlink: 2, update: 1, agents: 2,
+  describe: 2, categorize: 2, note: 2, link: 2, unlink: 2, update: 1,
+  agents: 2, remove: 1, trash: 2,
 };
 
 function assertKnownOptions() {
@@ -383,6 +392,11 @@ async function main() {
       const reg = buildRegistry();
       const items = [];
       for (const [name, s] of Object.entries(reg.skills || {})) {
+        // Only list what `describe` and `categorize` can actually write to.
+        // A Skill whose body lives in an Agent folder — a deliberate two-sided
+        // version, or a dangling link — used to appear here and then fail on
+        // the very next command, with no way for the caller to know why.
+        if (s.broken || s.type === "agent-specific") continue;
         const needsZh = !s.zh;
         const needsCategory = s.category === UNCLASSIFIED;
         if (!needsZh && !needsCategory) continue;
@@ -436,6 +450,66 @@ async function main() {
       setMetadataOverride(name, { category });
       buildRegistry();
       console.log(`✓ ${name} 已归入「${category}」`);
+      break;
+    }
+
+    case "note": {
+      const name = args[1];
+      const text = args[2];
+      if (!name || text === undefined) {
+        console.error('Usage: skillhub note <skillName> "<备注>"');
+        process.exit(1);
+      }
+      setMetadataOverride(name, { notes: text });
+      buildRegistry();
+      console.log(text ? `✓ ${name} 的备注已写入` : `✓ ${name} 的备注已清空`);
+      break;
+    }
+
+    // Uninstalling was only ever possible from the dashboard, which left an
+    // agent unable to do the one thing the Skill's own rules describe as
+    // reversible. --yes is required so the intent is explicit in the command.
+    case "remove": {
+      const name = args[1];
+      if (!name) {
+        console.error("Usage: skillhub remove <skillName> --yes");
+        process.exit(1);
+      }
+      if (!args.includes("--yes")) {
+        console.error(`Refusing to remove "${name}" without --yes.`);
+        console.error("It moves the Skill to ~/.agents/_trash/ and unlinks it from every agent.");
+        process.exit(1);
+      }
+      removeSkill(name);
+      buildRegistry();
+      console.log(`✓ 已卸载 ${name}`);
+      console.log(`  实体在 ~/.agents/_trash/，用 skillhub trash 查看，skillhub undo 可连链接一起还原`);
+      break;
+    }
+
+    case "trash": {
+      if (args[1] === "restore") {
+        const entry = args[2];
+        if (!entry) {
+          console.error("Usage: skillhub trash restore <entry>");
+          process.exit(1);
+        }
+        const r = restoreTrash(entry);
+        buildRegistry();
+        console.log(`✓ 已恢复 ${r.restored}，各 agent 的链接需要重新同步`);
+        break;
+      }
+      const items = listTrash();
+      if (jsonMode) {
+        console.log(JSON.stringify(items, null, 2));
+        return;
+      }
+      console.log(`\n🗑 回收站 (${items.length})\n`);
+      for (const it of items) {
+        console.log(`  ${it.entry.padEnd(46)} ${it.mtime.slice(0, 16).replace("T", " ")}`);
+      }
+      if (items.length) console.log(`\n  恢复： skillhub trash restore <上面的名字>`);
+      console.log("");
       break;
     }
 

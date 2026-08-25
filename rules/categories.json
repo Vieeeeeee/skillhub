@@ -116,6 +116,17 @@
       "变现",
       "对标",
       "运营"
+    ],
+    "exact": [
+      "retro",
+      "retrospective",
+      "standup",
+      "roadmap",
+      "okr",
+      "kpi",
+      "office-hours",
+      "postmortem",
+      "landing-report"
     ]
   },
   {
@@ -291,7 +302,12 @@
     "name": "开发 / 代码",
     "prefix": [
       "git-",
-      "codex-"
+      "codex-",
+      "document-",
+      "docs-",
+      "benchmark-",
+      "spec-",
+      "review-"
     ],
     "keywords": [
       "code",
@@ -312,6 +328,28 @@
       "重构",
       "单元测试",
       "代码审查"
+    ],
+    "exact": [
+      "qa",
+      "qa-only",
+      "review",
+      "code-review",
+      "spec",
+      "specs",
+      "doc",
+      "docs",
+      "benchmark",
+      "benchmarks",
+      "debug",
+      "refactor",
+      "lint",
+      "test",
+      "tests",
+      "typecheck",
+      "changelog",
+      "release",
+      "deploy-check",
+      "diagram"
     ]
   },
   {
@@ -333,6 +371,20 @@
     ],
     "nameContains": [
       "skill"
+    ],
+    "exact": [
+      "codex",
+      "claude",
+      "gemini",
+      "cursor",
+      "agents",
+      "subagent",
+      "subagents",
+      "context-save",
+      "context-restore",
+      "freeze",
+      "handoff",
+      "unfreeze"
     ]
   }
 ]

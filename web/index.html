@@ -879,9 +879,21 @@ function openZhEditor(name) {
     <label>个人备注</label>
     <textarea id="notes-input">${escapeHtml(s.notes || "")}</textarea>
     <label>分类（改动会持久保存到 ~/.skillhub/overrides.json）</label>
-    <select id="cat-input">${allCategoryNames(s.category).map(c => `<option ${c===s.category?"selected":""}>${escapeHtml(c)}</option>`).join("")}</select>
+    <select id="cat-input">${allCategoryNames(s.category).map(c => `<option ${c===s.category?"selected":""}>${escapeHtml(c)}</option>`).join("")}<option value="__new__">＋ 新建分类…</option></select>
     <div class="actions"><button id="zh-cancel">取消</button><button id="zh-save" class="primary">保存</button></div>
   `);
+  // CLI 的 categorize 一直可以新建分类，面板这边只能从下拉里挑。
+  // 同一件事在两个入口能力不同，用户会以为面板做不到。
+  $("#cat-input").onchange = () => {
+    const sel = $("#cat-input");
+    if (sel.value !== "__new__") return;
+    const name = (prompt("新分类的名字：") || "").trim();
+    if (!name) { sel.value = s.category; return; }
+    if (![...sel.options].some(o => o.value === name || o.text === name)) {
+      sel.insertBefore(new Option(name, name), sel.lastElementChild);
+    }
+    sel.value = name;
+  };
   $("#zh-cancel").onclick = closeModal;
   $("#zh-save").onclick = async () => {
     const button = $("#zh-save");
@@ -1084,7 +1096,10 @@ async function openTrash() {
       </div>`).join("");
     showModal(`
       <h2>🗑 回收站</h2>
-      <p style="font-size:12px;color:var(--ink-2);margin:4px 0 10px">卸载的 Skill 均安全保存在此，恢复后将自动重新纳入 SSOT。</p>
+      <p style="font-size:12px;color:var(--ink-2);margin:4px 0 10px">
+        卸载的 Skill 都在这里。「恢复」把它搬回统一管理目录，<b>各 Agent 的软链不会一起回来</b>——
+        恢复之后点「🩺 体检/同步」补上。想连链接一起还原，用顶栏的「↩︎ 撤销」。
+      </p>
       <div style="max-height:50vh;overflow:auto;border:1px solid var(--border);border-radius:8px">
         ${rows || '<div class="empty" style="padding:12px">回收站是空的</div>'}
       </div>
@@ -1095,7 +1110,7 @@ async function openTrash() {
       btn.disabled = true; btn.textContent = "恢复中…";
       try {
         await api("/api/trash/restore", { method: "POST", body: JSON.stringify({ entry: btn.dataset.restore }) });
-        toast("已恢复 Skill", "ok");
+        toast(`已恢复 ${r.restored}，链接需要重新同步`, "ok");
         closeModal();
         await load();
       } catch (e) { toast(e.message, "error"); btn.disabled = false; }
@@ -1108,17 +1123,29 @@ function openAddSkill() {
     <h2>添加 Skill</h2>
     <label>Git URL</label>
     <input type="url" id="git-url" placeholder="https://github.com/owner/repository">
-    <p style="font-size:12px;color:var(--ink-2);line-height:1.6;margin:8px 0">仅支持公开 GitHub HTTPS 仓库。SkillHub 会检查结构、大小和超时，但不会证明 Skill 或其中脚本安全；安装前请先阅读源码并确认来源可信。</p>
+    <p style="font-size:12px;color:var(--ink-2);line-height:1.6;margin:8px 0">
+      仅支持公开 GitHub HTTPS 仓库。SkillHub 会检查结构、大小和超时，但不会证明 Skill 或其中的脚本安全。
+      <a id="add-preview" href="#" target="_blank" rel="noopener noreferrer"
+         style="color:var(--accent);display:none">↗ 先在 GitHub 上打开看看</a>
+    </p>
     <label>本地名称 (可选)</label>
     <input type="text" id="local-name" placeholder="默认使用仓库名">
     <div class="actions"><button id="add-cancel">取消</button><button id="add-go" class="primary">克隆添加</button></div>
   `);
+  // 「确认已阅读该仓库内容」在没有任何查看入口的情况下是问不出答案的。
+  // 输入 URL 之后给一个真的能点开的链接，这个确认才有意义。
+  $("#git-url").oninput = () => {
+    const link = $("#add-preview");
+    const safe = sanitizeUrl($("#git-url").value.trim());
+    link.href = safe || "#";
+    link.style.display = safe ? "inline" : "none";
+  };
   $("#add-cancel").onclick = closeModal;
   $("#add-go").onclick = async () => {
     const url = $("#git-url").value.trim();
     const name = $("#local-name").value.trim() || undefined;
     if (!url) { toast("请输入 Git URL", "error"); return; }
-    if (!confirm("确认已阅读该仓库内容，并信任它的 Skill 与脚本？")) return;
+    if (!confirm(`即将从 ${url} 克隆并安装。\n\nSkillHub 不会审查它的内容——Skill 可以让 agent 以你的权限运行脚本。确认继续？`)) return;
     $("#add-go").disabled = true; $("#add-go").textContent = "克隆中…";
     try {
       const r = await api("/api/add", { method: "POST", body: JSON.stringify({ gitUrl: url, name }) });

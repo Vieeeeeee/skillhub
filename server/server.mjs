@@ -166,34 +166,52 @@ export function createApp(customHome = null) {
     }
   });
 
+  // Every pull here is a synchronous git call with a 30s timeout, on the one
+  // thread that also answers the dashboard. Without a ceiling, a handful of
+  // unreachable remotes froze the whole page for minutes with no way to stop
+  // it. Stop at the budget and hand back what is left to do.
+  const UPDATE_ALL_BUDGET_MS = 90_000;
+
   app.post("/api/update-all", (c) => {
     try {
       const reg = buildRegistry(customHome);
       const results = [];
       const updatedSources = new Set();
+      const remaining = [];
+      const deadline = Date.now() + UPDATE_ALL_BUDGET_MS;
+
       for (const [name, s] of Object.entries(reg.skills || {})) {
-        if (s.type === "git" || s.type === "bundle-symlink") {
-          const sourceKey = s.bundle ? `bundle:${s.bundle}` : `skill:${name}`;
-          if (updatedSources.has(sourceKey)) continue;
-          updatedSources.add(sourceKey);
-          try {
-            const r = ops.updateSkill(name, customHome);
-            results.push({ name, bundle: s.bundle || "", ok: true, ...r });
-          } catch (e) {
-            results.push({ name, bundle: s.bundle || "", ok: false, error: e.message });
-          }
+        if (s.type !== "git" && s.type !== "bundle-symlink") continue;
+        const sourceKey = s.bundle ? `bundle:${s.bundle}` : `skill:${name}`;
+        if (updatedSources.has(sourceKey)) continue;
+        updatedSources.add(sourceKey);
+
+        if (Date.now() >= deadline) {
+          remaining.push(s.bundle || name);
+          continue;
+        }
+        try {
+          const r = ops.updateSkill(name, customHome);
+          results.push({ name, bundle: s.bundle || "", ok: true, ...r });
+        } catch (e) {
+          results.push({ name, bundle: s.bundle || "", ok: false, error: e.message });
         }
       }
       buildRegistry(customHome);
       const failed = results.filter((r) => !r.ok);
       return c.json({
-        ok: failed.length === 0,
-        partial: failed.length > 0 && failed.length < results.length,
+        ok: failed.length === 0 && remaining.length === 0,
+        partial: (failed.length > 0 || remaining.length > 0) && results.length > 0,
         attempted: results.length,
         succeeded: results.length - failed.length,
         failed: failed.length,
+        remaining,
         results,
-        error: failed.length ? `${failed.length} update(s) failed` : undefined,
+        error: remaining.length
+          ? `${failed.length ? `${failed.length} 项失败；` : ""}还有 ${remaining.length} 项没跑到，再点一次继续`
+          : failed.length
+            ? `${failed.length} update(s) failed`
+            : undefined,
       });
     } catch (e) {
       return c.json({ ok: false, error: e.message }, 500);

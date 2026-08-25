@@ -1,7 +1,7 @@
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { getPaths } from "../src/core/paths.mjs";
-import { loadCategoriesConfig } from "../src/core/classify.mjs";
+import { classifySkill } from "../src/core/classify.mjs";
 
 const TTL_MS = 7 * 24 * 3600 * 1000; // 1 week
 
@@ -18,16 +18,13 @@ const SEARCHES = [
   "q=" + encodeURIComponent("topic:codex-skills") + "&sort=stars&order=desc&per_page=30",
 ];
 
+// The leaderboard used to carry its own matcher: bare substring, keywords only,
+// no rule ordering. Every over-matching problem fixed in classifySkill was
+// still live here. One classifier, one set of rules.
 function classifyRepo(r) {
-  const categories = loadCategoriesConfig();
-  const hay = (r.full_name + " " + (r.description || "") + " " + (r.topics || []).join(" ")).toLowerCase();
-
-  for (const cat of categories) {
-    if (cat.keywords && cat.keywords.some((k) => hay.includes(k.toLowerCase()))) {
-      return cat.name;
-    }
-  }
-  return "其他 / 未分类";
+  const name = String(r.full_name || "").split("/").pop() || "";
+  const context = [r.description || "", ...(r.topics || [])].join(" ");
+  return classifySkill(name, context);
 }
 
 async function gh(path) {
@@ -73,15 +70,24 @@ function installedRepoSet(registry) {
 export async function fetchHot(customHome = null) {
   const paths = getPaths(customHome);
   const byRepo = new Map();
+  let anySearchSucceeded = false;
 
   for (const qs of SEARCHES) {
     try {
       const d = await gh("/search/repositories?" + qs);
+      anySearchSucceeded = true;
       for (const r of d.items || []) byRepo.set(r.full_name, r);
     } catch (e) {
       console.error("Hot search failed:", e.message);
     }
     await new Promise((r) => setTimeout(r, 800));
+  }
+
+  // Unauthenticated GitHub search allows ten requests a minute and this makes
+  // five. Writing an empty result to a week-long cache turned one rate-limited
+  // moment into seven days of an empty leaderboard that refreshing could not fix.
+  if (!anySearchSucceeded && byRepo.size === 0) {
+    throw new Error("GitHub 暂时取不到数据（可能是限流或离线），稍后再试。");
   }
 
   const since = new Date(Date.now() - 90 * 86400000).toISOString().slice(0, 10);

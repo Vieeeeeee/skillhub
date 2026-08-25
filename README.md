@@ -124,8 +124,9 @@ Update the npm CLI with `npm install --global @wsiwsii/skillhub@latest`. Update 
 ~/.agents/_repos/                     managed multi-Skill repositories
 ~/.agents/_trash/                     locally removed Skill data
 ~/.skillhub/registry.json             generated inventory cache
-~/.skillhub/overrides.json            local labels, categories, and Agent choices
+~/.skillhub/overrides.json            your blurbs, categories, and Agent choices
 ~/.skillhub/backups/                  manifests for supported reversible operations
+~/.skillhub/cache/                    version check and GitHub leaderboard cache
 ~/.skillhub/session                   local dashboard token (mode 0600 on POSIX)
 
 ~/.claude/skills/<name>               link to the canonical Skill
@@ -133,6 +134,26 @@ Update the npm CLI with `npm install --global @wsiwsii/skillhub@latest`. Update 
 ~/.hermes/skills/claude-skills/<name> link to the canonical Skill
 ~/.cursor/skills/<name>                experimental adapter
 ```
+
+To put this data somewhere else, or to try SkillHub without touching an existing setup, use the environment:
+
+| Variable | Effect |
+|---|---|
+| `SKILL_HUB_HOME` | Use a different home. Every path above follows it. |
+| `SKILL_HUB_PORT` | Default dashboard port, same as `--port`. |
+| `SKILL_HUB_HOST` | Dashboard bind address; only loopback is accepted. |
+| `SKILL_HUB_NO_OPEN` | Set to anything to stop the browser opening. |
+
+`overrides.json` holds what you wrote; SkillHub never overwrites it. Beyond blurbs, categories and Agent choices it also reads these, which currently have to be edited by hand:
+
+| Field | Effect |
+|---|---|
+| `acceptedAliases` | `{"directory": "frontmatter name"}` — accept a mismatch and silence the matching health finding. |
+| `agentSpecificSkills` | `{"name": {"claude": ".claude/skills/name", "codex": ".codex/skills/name"}}` — declare two versions as deliberate so sync stops trying to unify them. |
+| `managedSkillContainers` | Directory names whose Skills another tool maintains; not reported as unmanaged orphans. |
+| `localCanonical` | Names where the local copy is authoritative; shown with a ⭐. |
+
+The three files under `rules/` are read once at startup, so editing them needs a restart.
 
 Agent paths come from [`rules/agents.json`](./rules/agents.json). Native discovery, such as the current Codex adapter, does not create a second copy. Link-based adapters use relative symlinks on POSIX and directory junctions on Windows.
 
@@ -191,6 +212,9 @@ scan, list         Build and print the local inventory
 pending            List Skills missing a Chinese blurb or a category
 describe <name> <text>   Write a Skill's Chinese blurb
 categorize <name> <cat>  Set a Skill's category
+note <name> <text>       Write a personal note on a Skill
+remove <name> --yes      Uninstall a Skill (moved to the trash, reversible)
+trash [restore <entry>]  List the trash, or restore an entry from it
 agents [key on|off]      List Agents in use, or turn one on or off
 sync               Show the current sync plan
 link <name> <ag>   Enable a Skill for a link-based Agent

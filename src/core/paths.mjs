@@ -39,11 +39,23 @@ export function getPaths(customHome = null) {
   };
 }
 
+let _agentsConfigCache = null;
+
+/**
+ * Read once per process, like categories.json and known-sources.json.
+ *
+ * This one used to be re-parsed on every getAgentDirs() call — several times
+ * per request — while its two neighbours in rules/ were cached forever. Three
+ * config files in one directory behaved three different ways. They now share
+ * one rule: rules/ is read at startup, so editing it needs a restart.
+ */
 export function loadAgentsConfig() {
+  if (_agentsConfigCache) return _agentsConfigCache;
   const agentsFile = join(RULES_DIR, "agents.json");
   if (existsSync(agentsFile)) {
     try {
-      return JSON.parse(readFileSync(agentsFile, "utf-8"));
+      _agentsConfigCache = JSON.parse(readFileSync(agentsFile, "utf-8"));
+      return _agentsConfigCache;
     } catch {
       // fallback
     }

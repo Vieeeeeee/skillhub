@@ -152,3 +152,44 @@ test("a blurb has a length limit", (t) => {
   const out = runFailing(home, ["describe", "alpha", "长".repeat(5000)]);
   assert.match(out, /too long/);
 });
+
+test("uninstall, trash and notes are reachable without the dashboard", (t) => {
+  const home = makeHome(t, { alpha: "An english description." });
+
+  run(home, ["note", "alpha", "我的备注"]);
+  assert.equal(JSON.parse(run(home, ["scan", "--json"])).skills.alpha.notes, "我的备注");
+
+  // Removing moves data. The intent has to be explicit in the command, because
+  // an agent runs these without anyone watching.
+  assert.match(runFailing(home, ["remove", "alpha"]), /without --yes/);
+  assert.ok(JSON.parse(run(home, ["scan", "--json"])).skills.alpha, "a refused remove changes nothing");
+
+  run(home, ["remove", "alpha", "--yes"]);
+  assert.equal(JSON.parse(run(home, ["scan", "--json"])).skills.alpha, undefined);
+
+  const trashed = JSON.parse(run(home, ["trash", "--json"]));
+  assert.equal(trashed.length, 1);
+
+  run(home, ["trash", "restore", trashed[0].entry]);
+  assert.ok(JSON.parse(run(home, ["scan", "--json"])).skills.alpha, "restore brings it back");
+});
+
+test("pending only lists Skills that describe can actually write to", (t) => {
+  const home = makeHome(t, { alpha: "An english description." });
+
+  // A deliberate two-sided Skill has no body in the managed folder, so
+  // setMetadataOverride refuses it. Listing it as pending sent the caller
+  // straight into an error with no way to know why.
+  const claudeSide = join(home, ".claude", "skills", "twin");
+  mkdirSync(claudeSide, { recursive: true });
+  writeFileSync(join(claudeSide, "SKILL.md"), "---\nname: twin\ndescription: claude side\n---\n");
+  mkdirSync(join(home, ".skillhub"), { recursive: true });
+  writeFileSync(
+    join(home, ".skillhub", "overrides.json"),
+    JSON.stringify({ agentSpecificSkills: { twin: { claude: ".claude/skills/twin" } } })
+  );
+
+  const names = JSON.parse(run(home, ["pending", "--json"])).items.map((i) => i.name);
+  assert.ok(names.includes("alpha"));
+  assert.ok(!names.includes("twin"), "twin cannot be written to, so it must not be offered");
+});

@@ -43,7 +43,14 @@ export function loadUserOverrides(overridesFile) {
       }
       return parsed;
     } catch (error) {
-      throw new Error(`Unable to read overrides file ${overridesFile}: ${error.message}`);
+      // This file holds the hand-written blurbs, categories and Agent choices.
+      // Refusing to read a damaged one is right — silently starting over would
+      // throw that work away — but the message has to say how to get unstuck.
+      throw new Error(
+        `Cannot read ${overridesFile}: ${error.message}\n` +
+          `That file holds your Chinese blurbs, categories and Agent choices. ` +
+          `Fix the JSON, or move it aside to start over (the blurbs are lost, nothing else is).`
+      );
     }
   }
   return {};
@@ -347,6 +354,14 @@ export function buildRegistry(customHome = null) {
       if (ch.origin) origin = ch.origin;
     }
 
+    // Whether the real content sits inside the home SkillHub manages. Reads
+    // follow the link out; every write refuses to. Recording it here lets the
+    // health report say so instead of leaving the user to hit a path guard.
+    let outsideManagedHome = false;
+    try {
+      outsideManagedHome = !isInsideRoot(realpathSync(entryPath), paths.HOME);
+    } catch {}
+
     const meta = parseSkillMeta(entryPath);
     const desc = meta.description;
     const fmName = meta.fmName;
@@ -407,6 +422,7 @@ export function buildRegistry(customHome = null) {
       inferredSource: inferredSources[name] || "",
       upstreamPath: upstreamPaths[name] || "",
       localCanonical: localCanonical.has(name),
+      outsideManagedHome,
       // No hasUpdate / latestUpstream / lastChecked here: nothing ever queried
       // an upstream, so the dashboard spent six components reporting "all up to
       // date" from a field that was only ever copied forward as false. SkillHub

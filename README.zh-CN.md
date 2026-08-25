@@ -124,8 +124,9 @@ npm 版升级用 `npm install --global @wsiwsii/skillhub@latest`；源码版用 
 ~/.agents/_repos/                     统一管理的多 Skill 仓库
 ~/.agents/_trash/                     本地回收站
 ~/.skillhub/registry.json             自动生成的清单缓存
-~/.skillhub/overrides.json            本地名称、分类和 Agent 选择
+~/.skillhub/overrides.json            你写的中文介绍、分类和 Agent 选择
 ~/.skillhub/backups/                  支持回滚操作的 manifest
+~/.skillhub/cache/                    版本检查和 GitHub 热榜的缓存，删了会重新抓
 ~/.skillhub/session                   面板令牌，POSIX 下权限为 0600
 
 ~/.claude/skills/<name>               指向唯一真身
@@ -133,6 +134,27 @@ npm 版升级用 `npm install --global @wsiwsii/skillhub@latest`；源码版用 
 ~/.hermes/skills/claude-skills/<name> 指向唯一真身
 ~/.cursor/skills/<name>                实验性适配
 ```
+
+想把这些数据放到别处，或者试用时不碰现有配置，用环境变量：
+
+| 变量 | 作用 |
+|---|---|
+| `SKILL_HUB_HOME` | 换一个家目录。上面所有路径都跟着走，试用和多套配置靠它 |
+| `SKILL_HUB_PORT` | 面板默认端口，等同 `--port` |
+| `SKILL_HUB_HOST` | 面板绑定地址，只接受回环地址 |
+| `SKILL_HUB_NO_OPEN` | 设成任意值就不自动打开浏览器 |
+
+`overrides.json` 存的是你手写的东西，SkillHub 自己不会覆盖。除了中文介绍、分类和 Agent 选择，它还认这几个字段，目前只能手写：
+
+| 字段 | 作用 |
+|---|---|
+| `acceptedAliases` | `{"目录名": "frontmatter 里的 name"}`，接受两者不一致，消除对应的体检告警 |
+| `agentSpecificSkills` | `{"名字": {"claude": ".claude/skills/名字", "codex": ".codex/skills/名字"}}`，声明这个 Skill 在两端就是刻意的两个版本，同步不再想统一它们 |
+| `managedSkillContainers` | 目录名数组。里面的 Skill 由别的工具自管，不当成未纳管的孤儿 |
+| `localCanonical` | 名字数组。标记本地这份是权威版，面板显示 ⭐ |
+
+`rules/` 目录下的三个配置在进程启动时读一次，改完要重启面板才生效。
+
 
 Agent 路径来自 [`rules/agents.json`](./rules/agents.json)。Codex 当前配置采用原生扫描，不额外复制文件。需要链接的 Agent 在 macOS/Linux 使用相对软链接，在 Windows 使用目录 Junction。
 
@@ -191,6 +213,9 @@ scan, list         生成并输出本地清单
 pending            列出还缺中文介绍或还没归类的 Skill
 describe <名字> <文本>   写入 Skill 的中文介绍
 categorize <名字> <分类> 设置 Skill 的分类
+note <名字> <文本>       写入个人备注
+remove <名字> --yes      卸载 Skill（移入回收站，可恢复）
+trash [restore <条目>]   查看回收站，或从中恢复一项
 agents [名字 on|off]     查看在用哪些 Agent，或开关某一个
 sync               查看当前同步计划
 link <名字> <agent>   为链接型 Agent 启用 Skill

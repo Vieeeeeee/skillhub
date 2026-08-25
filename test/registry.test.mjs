@@ -142,7 +142,14 @@ test("overrides writes are readable and malformed files fail loudly", (t) => {
   assert.equal(loadUserOverrides(file).categoryOverrides.demo, "Tools");
 
   writeFileSync(file, "{broken-json");
-  assert.throws(() => loadUserOverrides(file), /Unable to read overrides file/);
+  // Refusing a damaged file is right — starting over silently would throw away
+  // the user's blurbs. The message has to name the file and the way out.
+  assert.throws(() => loadUserOverrides(file), (error) => {
+    assert.match(error.message, /Cannot read .*overrides\.json/);
+    assert.match(error.message, /blurbs/);
+    assert.match(error.message, /move it aside/);
+    return true;
+  });
 });
 
 test("an erased Chinese blurb stays erased across rescans", (t) => {
