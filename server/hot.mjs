@@ -5,6 +5,10 @@ import { classifySkill } from "../src/core/classify.mjs";
 
 const TTL_MS = 7 * 24 * 3600 * 1000; // 1 week
 
+// 一份缺了官方仓库的榜单不值得存一周。seed 抓不到几乎总是一次性的限流，一小时后
+// 重来就好；按整周缓存等于让一次限流把榜单残废七天。
+const PARTIAL_TTL_MS = 3600 * 1000;
+
 const SEED_REPOS = [
   "anthropics/skills",
   "openai/skills",
@@ -101,11 +105,13 @@ export async function fetchHot(customHome = null) {
     console.error("Rising search failed:", e.message);
   }
 
+  let missingSeeds = 0;
   for (const full of SEED_REPOS) {
     if (byRepo.has(full)) continue;
     try {
       byRepo.set(full, await gh("/repos/" + full));
     } catch (e) {
+      missingSeeds += 1;
       console.error("Seed fetch failed:", full, e.message);
     }
   }
@@ -137,6 +143,7 @@ export async function fetchHot(customHome = null) {
   const data = {
     fetchedAt: new Date().toISOString(),
     totalScanned: byRepo.size,
+    partial: missingSeeds > 0,
     categories,
   };
 
@@ -152,7 +159,7 @@ export async function getHot({ force = false, customHome = null } = {}) {
   if (!force && existsSync(cacheFile)) {
     try {
       const cached = JSON.parse(readFileSync(cacheFile, "utf-8"));
-      if (Date.now() - new Date(cached.fetchedAt).getTime() < TTL_MS) {
+      if (Date.now() - new Date(cached.fetchedAt).getTime() < (cached.partial ? PARTIAL_TTL_MS : TTL_MS)) {
         let registry = { skills: {} };
         if (existsSync(paths.REGISTRY_FILE)) {
           try {

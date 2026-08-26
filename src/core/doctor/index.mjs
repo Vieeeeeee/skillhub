@@ -5,6 +5,7 @@ import {
   lstatSync,
   realpathSync,
 } from "node:fs";
+import { homedir } from "node:os";
 import { join, relative } from "node:path";
 import { getPaths, getAgentDirs } from "../paths.mjs";
 import { buildSyncPlan } from "../sync.mjs";
@@ -37,6 +38,21 @@ function isPlaceholderHome(sample) {
   const leaf = sample.split(/[/\\]/).filter(Boolean).pop() || "";
   return PLACEHOLDER_HOME_NAMES.has(leaf.toLowerCase());
 }
+
+// 这台机器属于谁。带着别人用户名的路径是随第三方 Skill 一起装进来的：不归用户改，
+// 改了下次更新还会被覆盖。它仍然值得看见，但不该占用「需要你判断」那份清单。
+// 用系统家目录而不是 SKILL_HUB_HOME——问的是「这是不是我的名字」，跟测试用的临时
+// 家目录无关。
+const OWN_HOME_LEAF = (homedir().split(/[/\\]/).filter(Boolean).pop() || "").toLowerCase();
+
+function isForeignHome(sample) {
+  const leaf = (sample.split(/[/\\]/).filter(Boolean).pop() || "").toLowerCase();
+  return Boolean(OWN_HOME_LEAF) && leaf !== OWN_HOME_LEAF;
+}
+
+// `.bak` / `.orig` / `foo~` 这类副本没有任何 Agent 会加载。报它里面的路径，等于让
+// 用户去改一个根本没人读的文件。凭据扫描不走这条豁免——磁盘上的 key 仍然是 key。
+const BACKUP_FILE_RE = /(?:\.bak[^/\\]*|\.orig|\.old|~)$/i;
 
 function isEnvTemplate(fileName) {
   return ENV_TEMPLATE_SUFFIXES.some((suffix) => fileName.endsWith(suffix));
@@ -151,8 +167,8 @@ function scanSkillDirectory(dirPath) {
       }
 
       const match = content.match(/(\/Users\/[a-zA-Z0-9._-]+|\/home\/[a-zA-Z0-9._-]+|[A-Z]:\\Users\\[a-zA-Z0-9._-]+)/);
-      if (match && !isPlaceholderHome(match[1])) {
-        hardcodedHomes.push({ file: relPath, sample: match[1] });
+      if (match && !isPlaceholderHome(match[1]) && !BACKUP_FILE_RE.test(entry.name)) {
+        hardcodedHomes.push({ file: relPath, sample: match[1], foreign: isForeignHome(match[1]) });
       }
 
       if (relPath === "SKILL.md") brokenLinks.push(...findBrokenInternalLinks(dirPath, content));
@@ -195,10 +211,16 @@ export function isDefaultReportItem(issue) {
  * normal thing to do, and reading that as "everything here is upstream" hid
  * every finding in the whole library behind the `--all` flag.
  */
-// Agent Skills names are lowercase words joined by hyphens. A directory that
-// breaks the shape still gets scanned and linked, and still produces a trigger
-// word — one the user may not be able to type, as with a space in it.
-const VALID_SKILL_NAME = /^[a-z0-9]+(-[a-z0-9]+)*$/;
+// Agent Skills names are lowercase words joined by hyphens or underscores. A
+// directory that breaks the shape still gets scanned and linked, and still
+// produces a trigger word — one the user may not be able to type, as with a
+// space in it.
+//
+// Underscores are here because they work. Requiring hyphens flagged every
+// underscore-named Skill with the report's highest severity while those Skills
+// loaded and triggered perfectly well, which is the one thing a health check
+// must never do: spend Tier A on something that is not broken.
+const VALID_SKILL_NAME = /^[a-z0-9]+([-_][a-z0-9]+)*$/;
 
 function isThirdParty(s) {
   if (!s) return false;
@@ -285,8 +307,8 @@ function inspectSkill(name, s, issues, location = "") {
         skill: name,
         path: s.path,
         title: "目录名不符合 Skill 命名规范",
-        reason: `"${name}" 不是小写字母加连字符的形式，触发词会变成 "/${name}"，部分 agent 加载不了，含空格时斜杠命令也敲不出来`,
-        recommendation: `把目录改名为小写连字符形式，例如 "${name.toLowerCase().replace(/[_\s]+/g, "-").replace(/[^a-z0-9-]/g, "") || "my-skill"}"`,
+        reason: `"${name}" 不是小写字母加连字符或下划线的形式，触发词会变成 "/${name}"，部分 agent 加载不了，含空格时斜杠命令也敲不出来`,
+        recommendation: `把目录改名为小写形式，例如 "${name.toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9_-]/g, "") || "my-skill"}"`,
         fixable: false,
       });
     }
@@ -358,9 +380,15 @@ function inspectSkill(name, s, issues, location = "") {
           skill: name,
           path: join(s.path, hc.file),
           title: `硬编码绝对路径 (${hc.file})`,
-          reason: `检测到个人绝对路径: ${hc.sample}`,
-          recommendation: "改用相对路径或环境变量",
+          reason: hc.foreign
+            ? `写的是别人的路径 ${hc.sample}，不是你的`
+            : `检测到个人绝对路径: ${hc.sample}`,
+          recommendation: hc.foreign
+            ? "这是 Skill 作者自己的路径，改了下次更新会被覆盖。除非它真的影响你使用，否则不用管"
+            : "改用相对路径或环境变量",
           fixable: false,
+          // 别人的路径不是用户要做的决定，降为背景信息，--all 仍然看得到。
+          ...(hc.foreign ? { decision: false } : {}),
         });
       }
 
@@ -484,8 +512,12 @@ export function runDoctor(registry, customHome = null) {
         path: act.path,
         title: "Codex 冗余软链接",
         reason: act.note || "Codex 已原生扫描 SSOT",
-        recommendation: "可安全清理该软链接",
-        fixable: true,
+        // Nothing can act on this. `sync --apply` only creates links,
+        // `--fix-broken` only removes broken ones, and the dashboard offers the
+        // same two. Claiming it is fixable sent the reader looking for a button
+        // that does not exist.
+        recommendation: `可安全清理：手动删除该软链接即可（rm "${act.path}"）`,
+        fixable: false,
         action: act,
       });
     } else if (act.kind === "remove-empty-dir") {
@@ -496,8 +528,9 @@ export function runDoctor(registry, customHome = null) {
         skill: act.skill,
         title: "SSOT 空目录",
         reason: "目录内无任何文件且无 SKILL.md",
-        recommendation: "清理空文件夹",
-        fixable: true,
+        // Same as above: no command and no button reaches this action.
+        recommendation: `清理空文件夹：手动删除即可（rmdir "${act.path}"）`,
+        fixable: false,
         action: act,
       });
     } else if (act.kind === "report-not-a-skill") {
@@ -581,7 +614,9 @@ export function runDoctor(registry, customHome = null) {
 
   for (const issue of issues) {
     if (issue.owned === undefined) issue.owned = true;
-    issue.decision = !BACKGROUND_RULES.has(issue.id);
+    // 规则整体是不是背景信息由 BACKGROUND_RULES 定；单条发现可以自己先声明，
+    // 用于同一条规则里只有部分命中不需要用户决定的情况（比如别人的绝对路径）。
+    if (issue.decision === undefined) issue.decision = !BACKGROUND_RULES.has(issue.id);
   }
 
   // Sort by Tier (A -> B -> C)

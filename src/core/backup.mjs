@@ -403,11 +403,24 @@ export function undoLastBackup(backupsDir) {
   return withOverridesLock(overridesFile, () => undoLastBackupLocked(backupsDir));
 }
 
-function undoLastBackupLocked(backupsDir) {
-  const backups = listBackups(backupsDir);
-  const target = backups.find((backup) =>
-    !backup.manifest.undoneAt && backup.manifest.operations.length > 0
+/**
+ * The session `undo` would reverse next, without reversing it. Callers that
+ * need to warn before acting — a batch of writes shares one session, so one
+ * undo can take back dozens of hand-written blurbs — ask here first.
+ *
+ * Shared with undoLastBackupLocked so "which session is next" has one answer.
+ */
+export function peekLastBackup(backupsDir) {
+  if (!existsSync(backupsDir)) return null;
+  return (
+    listBackups(backupsDir).find(
+      (backup) => !backup.manifest.undoneAt && backup.manifest.operations.length > 0
+    ) || null
   );
+}
+
+function undoLastBackupLocked(backupsDir) {
+  const target = peekLastBackup(backupsDir);
 
   if (!target) {
     // Not a failure: a fresh install has nothing recorded yet, and calling that

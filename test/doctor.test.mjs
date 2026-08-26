@@ -199,6 +199,14 @@ test("rules cover the three ways a Skill is installed but unusable", (t) => {
   const ssot = join(tmp, ".agents", "skills");
 
   // 1. A directory name outside the naming shape still gets a trigger word.
+  //    A space is the case that actually bites: "/my diary" is not a command
+  //    anyone can type.
+  const spaced = join(ssot, "my diary");
+  mkdirSync(spaced, { recursive: true });
+  writeFileSync(join(spaced, "SKILL.md"), "---\nname: my diary\ndescription: d\n---\n");
+
+  // 1b. Underscores are a naming style, not a fault. These load and trigger
+  //     normally, so the report must leave them alone.
   const underscored = join(ssot, "my_diary");
   mkdirSync(underscored, { recursive: true });
   writeFileSync(join(underscored, "SKILL.md"), "---\nname: my_diary\ndescription: d\n---\n");
@@ -222,7 +230,7 @@ test("rules cover the three ways a Skill is installed but unusable", (t) => {
   const issues = runDoctor(buildRegistry(tmp), tmp);
 
   const invalid = issues.filter((i) => i.id === "invalid-skill-name");
-  assert.deepEqual(invalid.map((i) => i.skill), ["my_diary"]);
+  assert.deepEqual(invalid.map((i) => i.skill), ["my diary"]);
   assert.equal(invalid[0].tier, "A");
 
   const collisions = issues.filter((i) => i.id === "duplicate-trigger-name");

@@ -3,7 +3,6 @@ import {
   readdirSync,
   mkdirSync,
   renameSync,
-  statSync,
   lstatSync,
   mkdtempSync,
   rmSync,
@@ -554,22 +553,34 @@ export function listTrash(customHome = null) {
   if (!existsSync(paths.TRASH)) return [];
   assertManagedHomePath(paths.TRASH, paths, true);
 
+  let entries;
   try {
-    const entries = readdirSync(paths.TRASH, { withFileTypes: true });
-    return entries.map((e) => {
-      const full = join(paths.TRASH, e.name);
-      const stat = statSync(full);
-      return {
-        name: e.name,
-        entry: e.name,
-        isDir: e.isDirectory(),
-        size: stat.size,
-        mtime: stat.mtime.toISOString(),
-      };
-    });
+    entries = readdirSync(paths.TRASH, { withFileTypes: true });
   } catch {
     return [];
   }
+
+  const items = [];
+  for (const e of entries) {
+    // lstat, and per entry. statSync follows the link, so one dangling entry —
+    // which is exactly what uninstalling a link-only Skill leaves behind —
+    // threw and emptied the whole listing. The user was then told their trash
+    // was empty while their data sat in it.
+    let stat;
+    try {
+      stat = lstatSync(join(paths.TRASH, e.name));
+    } catch {
+      continue;
+    }
+    items.push({
+      name: e.name,
+      entry: e.name,
+      isDir: e.isDirectory(),
+      size: stat.size,
+      mtime: stat.mtime.toISOString(),
+    });
+  }
+  return items;
 }
 
 export function restoreTrash(entryName, customHome = null) {

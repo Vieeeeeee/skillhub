@@ -216,5 +216,17 @@ test("backups and undo say how many writes a session covers", (t) => {
 
   // "1 op" is true and useless: undoing this takes back three blurbs.
   assert.match(run(home, ["backups"]), /合并了 3 次写入/);
-  assert.match(run(home, ["undo"]), /合并了 3 次写入/);
+
+  // Saying so afterwards is too late — the blurbs are already gone and there is
+  // no redo. A batched undo has to announce the count and wait for --yes.
+  let refusal;
+  try {
+    run(home, ["undo"]);
+    assert.fail("a batched undo must not run without --yes");
+  } catch (error) {
+    refusal = String(error.stderr || "");
+  }
+  assert.match(refusal, /一起回退 3 次写入/);
+
+  assert.match(run(home, ["undo", "--yes"]), /合并了 3 次写入/);
 });
