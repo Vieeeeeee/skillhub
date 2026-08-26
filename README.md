@@ -80,11 +80,35 @@ None of this edits the contents of a Skill. Writes are limited to links and to S
 The dashboard and the CLI work on their own:
 
 ```bash
-skillhub open      # local dashboard
+skillhub open      # local dashboard — runs in the foreground, Ctrl-C to stop
 skillhub scan      # what is installed
 skillhub pending   # what still needs a description or a category
 skillhub doctor    # health report
 ```
+
+Changing things:
+
+```bash
+skillhub link <name> <agent>     # let one agent read one Skill
+skillhub unlink <name> <agent>   # stop it reading that Skill
+skillhub describe <name> "..."   # write the Chinese blurb
+skillhub categorize <name> "..." # set the category
+skillhub note <name> "..."       # write a private note
+skillhub update <name>           # git pull --ff-only for that Skill
+skillhub remove <name> --yes     # move it to ~/.agents/_trash/
+skillhub trash                   # list the trash
+skillhub trash restore <entry>   # put one back
+skillhub backups                 # list backup sessions
+skillhub undo                    # reverse the last one
+```
+
+Every command above records a backup session first, so `skillhub undo` can take it
+back. A run of `describe`/`categorize`/`note` inside 30 minutes shares one session:
+`undo` then covers the whole batch and asks for `--yes` before doing it.
+
+`scan`, `pending`, `doctor` and a bare `sync` never touch a Skill, but they are not
+pure reads either — they create `~/.agents/skills/` and `~/.skillhub/` if missing,
+refresh the local registry cache, and check npm once a day for a newer SkillHub.
 
 ## Running from source
 

@@ -4,6 +4,55 @@ All notable changes to SkillHub will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.0] - 2026-08-26
+
+A second adversarial review, this time aimed at the health report itself. The
+dominant defect was a different shape: spending the reader's attention on things
+that were not wrong, and offering buttons for work that could not be done.
+
+### Changed
+
+- `undo` now names the size of what it is about to reverse and waits for `--yes`
+  when a backup session covers more than one write. A run of `describe`,
+  `categorize` or `note` inside 30 minutes shares one session, so a single
+  `undo` could take back dozens of hand-written blurbs — and when that batch
+  also created `overrides.json`, reversing it removed the file with no copy to
+  restore and no redo. The count used to be printed after the fact.
+- The published package no longer ships the local design workspace. `files`
+  names `web/index.html` instead of all of `web/`, taking the tarball from
+  11.2 MB unpacked back to 315 kB.
+
+### Fixed
+
+- Underscored directory names are no longer reported. `my_diary` loads and
+  triggers exactly like `my-diary`, and calling it broken spent the report's
+  highest severity on Skills that work.
+- The trash lists its contents when one entry is a dangling link. `statSync`
+  followed the link, threw, and emptied the whole listing — telling the user
+  their trash was empty while their uninstalled Skill sat in it.
+- A path carrying somebody else's username reads as what it is. These arrive
+  inside third-party Skills, cannot usefully be edited locally, and now sit in
+  the background notes instead of the list of decisions to make.
+- Backup copies (`.bak`, `.orig`, `.old`, `~`) are no longer scanned for
+  hardcoded paths. No Agent loads them, so a finding there asked the user to fix
+  a file nobody reads. Credential scanning still covers them.
+- Findings that nothing can act on no longer claim to be fixable. Redundant
+  Codex links and empty SSOT directories are advisory, and the recommendation
+  now gives the command to run.
+- A prerelease is superseded by its own release. `0.4.0-beta.1` compared equal
+  to `0.4.0`, so anyone on a prerelease was told they were current on the day
+  the stable version shipped.
+- A leaderboard missing its seed repositories expires in an hour instead of a
+  week, so one rate-limited moment no longer leaves the list short for days.
+
+### Documentation
+
+- Both READMEs list every mutating command, say that the dashboard runs in the
+  foreground and stops with Ctrl-C, and state plainly that the read-only-looking
+  commands still create directories, refresh a cache, and check npm once a day.
+- `skill/SKILL.md` carries the full command list, including the seven mutating
+  commands an agent previously had no way to learn, and the `undo` batching trap.
+
 ## [0.4.0] - 2026-08-25
 
 An adversarial pre-release review of the whole project. The dominant defect was

@@ -1072,66 +1072,117 @@ async function openSync() {
     const row = iss => `
       <div class="sync-item">
         <span class="badge tier${iss.tier}">Tier ${iss.tier}</span>
-        <span class="sync-kind">${escapeHtml(iss.title)}</span>
         <span style="color:var(--ink)">${escapeHtml(iss.skill || iss.path || "")}</span>
         <div style="color:var(--ink-2); font-size:11px; margin-top:2px">${escapeHtml(iss.reason)} → <i>${escapeHtml(iss.recommendation)}</i></div>
       </div>`;
-    const rows = mine.map(row).join("");
-    const backgroundRows = background.length ? `
-      <details style="margin-top:6px">
-        <summary style="cursor:pointer;color:var(--ink-2);font-size:12px;padding:6px 4px">
-          另有 ${background.length} 项背景信息（描述偏长、文件偏大等，不需要你决定什么）
+
+    // 同一条规则命中十几次时，逐条平铺出来只会把真正不同的那两三条淹掉。按规则
+    // 归组：组名说清这类问题是什么、涉及几个 Skill，展开才看具体是哪些。
+    const groupRules = (list) => {
+      const m = new Map();
+      for (const i of list) {
+        if (!m.has(i.id)) m.set(i.id, { tier: i.tier, title: i.title, items: [] });
+        m.get(i.id).items.push(i);
+      }
+      return [...m.values()].sort((a, b) => b.items.length - a.items.length);
+    };
+    // 标题里的 "(SKILL.md)" 是单条的细节，放到组名上就成了误导。
+    const groupTitle = (g) => g.title.replace(/\s*[（(][^）)]*[）)]\s*$/, "");
+    const groupBlock = (g) => g.items.length === 1 ? row(g.items[0]) : `
+      <details style="border-bottom:1px solid var(--border)">
+        <summary style="cursor:pointer;padding:7px 4px">
+          <span class="badge tier${g.tier}">Tier ${g.tier}</span>
+          <b style="color:var(--ink)">${escapeHtml(groupTitle(g))}</b>
+          <span style="color:var(--ink-2);font-size:12px">· ${g.items.length} 个 Skill</span>
         </summary>
-        ${background.map(row).join("")}
-      </details>` : "";
-    const upstreamRows = upstream.length ? `
-      <details style="margin-top:6px">
-        <summary style="cursor:pointer;color:var(--ink-2);font-size:12px;padding:6px 4px">
-          另有 ${upstream.length} 项来自随上游更新的 Skill（本地改动会被下次升级覆盖）
-        </summary>
-        ${upstream.map(row).join("")}
-      </details>` : "";
+        ${g.items.map(row).join("")}
+      </details>`;
+    const foldedList = (list) => groupRules(list).map(groupBlock).join("");
+
+    // 按钮做的事和上面列的问题是两回事：按钮只动软链，一个 Skill 的内容都不碰。
+    // 以前这两件事挤在同一个弹窗里没有分界，报告说 27 项、按钮说 2 条，看的人
+    // 只能猜这个按钮会不会动那 27 项。
+    const jobs = [
+      brokenCount && {
+        id: "sync-clean-broken", kind: "fix-broken-link", primary: false,
+        label: `移除损坏链接（${brokenCount} 条）`,
+        done: "清理损坏链接",
+        desc: `删掉 ${brokenCount} 条指向已消失目标的软链`,
+      },
+      linkCount && {
+        id: "sync-apply", kind: "link", primary: true,
+        label: `补全缺失链接（${linkCount} 条）`,
+        done: "补全链接",
+        desc: `新建 ${linkCount} 条软链，让对应 Agent 能读到已有的 Skill`,
+      },
+    ].filter(Boolean);
+
+    const jobSection = jobs.length ? `
+      <div style="border:1px solid var(--border);border-radius:8px;padding:8px 10px;margin-bottom:10px">
+        <div style="font-size:12px;color:var(--ink);margin-bottom:4px"><b>可以一键处理</b></div>
+        <ul style="margin:0;padding-left:18px;font-size:12px;color:var(--ink-2);line-height:1.7">
+          ${jobs.map(j => `<li>${escapeHtml(j.desc)}</li>`).join("")}
+        </ul>
+        <div style="font-size:11px;color:var(--ink-2);margin-top:6px;opacity:.85">
+          只新建或删除软链，不会修改任何 Skill 的内容；执行前会写备份，可以 <code class="mono">skillhub undo</code> 撤销。
+        </div>
+      </div>` : `
+      <div style="border:1px solid var(--border);border-radius:8px;padding:8px 10px;margin-bottom:10px;font-size:12px;color:var(--ink-2)">
+        没有待同步的链接动作，下面的按钮也就没有可做的事。
+      </div>`;
 
     showModal(`
       <h2>🩺 体检与同步报告</h2>
-      <p style="font-size:12px;color:var(--ink-2);margin:4px 0 10px">
-        体检发现 <b>${mine.length}</b> 项需要你判断的。执行前请核对操作范围；可回滚的操作会写入备份记录。
-      </p>
-      <div style="max-height:46vh;overflow:auto;border:1px solid var(--border);border-radius:8px;padding:6px">
-        ${rows || '<div class="sync-item">✅ 没有需要你决定的问题</div>'}
-        ${backgroundRows}
-        ${upstreamRows}
+      ${jobSection}
+      <div style="font-size:12px;color:var(--ink);margin-bottom:4px">
+        <b>体检发现 ${mine.length} 项需要你判断</b>
+        <span style="color:var(--ink-2)">— 下面这些都<b>没有</b>一键修复，按钮不会碰它们，需要你自己处理</span>
+      </div>
+      <div style="max-height:40vh;overflow:auto;border:1px solid var(--border);border-radius:8px;padding:2px 6px">
+        ${foldedList(mine) || '<div class="sync-item">✅ 没有需要你决定的问题</div>'}
+        ${background.length ? `
+          <details style="margin-top:4px">
+            <summary style="cursor:pointer;color:var(--ink-2);font-size:12px;padding:6px 4px">
+              另有 ${background.length} 项背景信息（描述偏长、文件偏大、别人的绝对路径等，不需要你决定什么）
+            </summary>
+            ${foldedList(background)}
+          </details>` : ""}
+        ${upstream.length ? `
+          <details style="margin-top:4px">
+            <summary style="cursor:pointer;color:var(--ink-2);font-size:12px;padding:6px 4px">
+              另有 ${upstream.length} 项来自随上游更新的 Skill（本地改动会被下次升级覆盖）
+            </summary>
+            ${foldedList(upstream)}
+          </details>` : ""}
       </div>
       <div class="actions">
         <button id="sync-close">关闭</button>
-        ${brokenCount ? `<button id="sync-clean-broken">移除损坏链接（${brokenCount} 条）</button>` : ""}
-        ${linkCount ? `<button id="sync-apply" class="primary">补全缺失链接（${linkCount} 条）</button>` : ""}
+        ${jobs.map(j => `<button id="${j.id}"${j.primary ? ' class="primary"' : ""}>${escapeHtml(j.label)}</button>`).join("")}
       </div>`);
     $("#sync-close").onclick = closeModal;
-    const runSync = async (button, kind, successLabel) => {
+    // 按钮文案只在 jobs 里写一次：失败时要把它复原，两处各写一份迟早会对不上。
+    const runSync = async (button, job) => {
       button.disabled = true; button.textContent = "执行中…";
       try {
         const r = await api("/api/sync/apply", {
           method: "POST",
-          body: JSON.stringify({ kinds: [kind] }),
+          body: JSON.stringify({ kinds: [job.kind] }),
         });
-        toast(`${successLabel}：成功 ${r.succeeded} 项`, "ok");
+        toast(`${job.done}：成功 ${r.succeeded} 项`, "ok");
         closeModal();
         await load({ rescanHealth: true });
       } catch (e) {
         const d = e.data || {};
         const detail = (d.results || []).filter(x => !x.ok).map(x => x.error).filter(Boolean).join("；");
-        toast(`${successLabel}失败：${detail || e.message}`, "error");
+        toast(`${job.done}失败：${detail || e.message}`, "error");
         button.disabled = false;
-        button.textContent = kind === "link"
-          ? `补全缺失链接（${linkCount} 条）`
-          : `移除损坏链接（${brokenCount} 条）`;
+        button.textContent = job.label;
       }
     };
-    const applyBtn = $("#sync-apply");
-    if (applyBtn) applyBtn.onclick = () => runSync(applyBtn, "link", "补全链接");
-    const cleanBtn = $("#sync-clean-broken");
-    if (cleanBtn) cleanBtn.onclick = () => runSync(cleanBtn, "fix-broken-link", "清理损坏链接");
+    for (const job of jobs) {
+      const btn = $("#" + job.id);
+      if (btn) btn.onclick = () => runSync(btn, job);
+    }
   } catch (e) { closeModal(); toast(e.message, "error"); }
 }
 

@@ -49,6 +49,13 @@ export function isNewer(current, candidate) {
   return compareVersions(current, candidate) === 1;
 }
 
+// The tag that versionParts throws away. `0.4.0-beta.1` and `0.4.0` have the
+// same numbers, so without this they compared equal and anyone running a
+// prerelease was told they were up to date the day the stable version shipped.
+function prereleaseTag(v) {
+  return String(v || "").replace(/^v/, "").split("-").slice(1).join("-");
+}
+
 function compareVersions(v1, v2) {
   // Returns 1 if v2 > v1, -1 if v1 > v2, 0 if equal
   const p1 = versionParts(v1);
@@ -60,7 +67,14 @@ function compareVersions(v1, v2) {
     if (num2 > num1) return 1;
     if (num1 > num2) return -1;
   }
-  return 0;
+
+  // Same numbers: a prerelease ranks below the release it leads to (semver).
+  const tag1 = prereleaseTag(v1);
+  const tag2 = prereleaseTag(v2);
+  if (tag1 === tag2) return 0;
+  if (tag1 && !tag2) return 1;
+  if (!tag1 && tag2) return -1;
+  return tag2 > tag1 ? 1 : -1;
 }
 
 export async function checkSelfUpdate({ force = false, customHome = null, repo = DEFAULT_REPO } = {}) {

@@ -64,8 +64,12 @@ test("a prerelease version still compares", () => {
   // Number("0-beta") is NaN, and every comparison against NaN is false, so a
   // prerelease build answered "no newer version" no matter what was published.
   assert.equal(isNewer("0.4.0-beta.1", "0.4.1"), true);
-  assert.equal(isNewer("0.4.0-beta.1", "0.4.0"), false, "the release itself is not newer than its prerelease");
-  assert.equal(isNewer("0.4.0", "0.4.0-beta.1"), false);
+  // Semver ranks 0.4.0-beta.1 below 0.4.0, so the day the stable version ships
+  // is exactly the day a prerelease user needs to hear about it. Answering
+  // "already up to date" there left them stranded on a build nobody supports.
+  assert.equal(isNewer("0.4.0-beta.1", "0.4.0"), true, "the release supersedes its own prerelease");
+  assert.equal(isNewer("0.4.0-beta.1", "0.4.0-beta.2"), true, "a later prerelease is still an update");
+  assert.equal(isNewer("0.4.0", "0.4.0-beta.1"), false, "never walk a user back onto a prerelease");
   assert.equal(isNewer("0.4.0", "1.0.0"), true);
   assert.equal(isNewer("v0.4.0", "0.4.0"), false, "a leading v is not a version difference");
 });

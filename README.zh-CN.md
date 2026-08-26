@@ -80,11 +80,35 @@ New-Item -ItemType Junction -Path "$env:USERPROFILE\.claude\skills\skillhub" -Ta
 面板和命令行本身就能独立工作：
 
 ```bash
-skillhub open      # 打开本地面板
+skillhub open      # 打开本地面板（前台运行，Ctrl-C 停止）
 skillhub scan      # 看装了什么
 skillhub pending   # 看还有哪些缺中文介绍或没分类
 skillhub doctor    # 出一份体检报告
 ```
+
+会改东西的命令：
+
+```bash
+skillhub link <名字> <agent>     # 让某个 agent 能读某个 Skill
+skillhub unlink <名字> <agent>   # 取消
+skillhub describe <名字> "..."   # 写中文介绍
+skillhub categorize <名字> "..." # 归类
+skillhub note <名字> "..."       # 写私人备注
+skillhub update <名字>           # 对该 Skill 执行 git pull --ff-only
+skillhub remove <名字> --yes     # 移进 ~/.agents/_trash/
+skillhub trash                   # 看回收站
+skillhub trash restore <条目>    # 还原一条
+skillhub backups                 # 看备份会话
+skillhub undo                    # 撤销上一次
+```
+
+上面每条命令都会先记一次备份，`skillhub undo` 能退回去。注意：30 分钟内连续执行的
+`describe`／`categorize`／`note` 会合并成同一个备份会话，`undo` 一次就是整批一起退，
+所以它会先报数量并要求你加 `--yes`。
+
+`scan`、`pending`、`doctor` 和不带参数的 `sync` 不碰任何 Skill，但也不是纯只读：它们会
+在缺失时创建 `~/.agents/skills/` 和 `~/.skillhub/`、刷新本地清单缓存，并且每天向 npm
+查一次有没有新版 SkillHub。
 
 ## 从源码运行
 

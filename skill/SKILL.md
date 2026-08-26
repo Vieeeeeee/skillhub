@@ -16,6 +16,31 @@ description: >-
 - **卸载不是删除**，东西进 `~/.agents/_trash/`，随时能恢复。
 - 每次写操作都留备份，`skillhub undo` 回滚上一次。
 
+## 命令清单
+
+只读：`scan`（看装了什么，加 `--compact` 给出精简 JSON）、`pending`（缺中文介绍或分类的）、`doctor`（体检，加 `--all` 连上游管理的一起列）、`agents`（列出各 agent）、`sync`（只看计划）、`backups`、`trash`、`check-update`。
+
+会改东西：
+
+```bash
+skillhub link <名字> <agent>      # 建立软链，让该 agent 能读
+skillhub unlink <名字> <agent>    # 移除软链
+skillhub describe <名字> "中文介绍"
+skillhub categorize <名字> "分类名"
+skillhub note <名字> "备注"        # 传空串即清空
+skillhub update <名字>            # git pull --ff-only
+skillhub remove <名字> --yes      # 移进回收站，必须带 --yes
+skillhub trash restore <条目名>    # 从回收站还原
+skillhub sync --apply             # 只补缺失的链接
+skillhub sync --fix-broken        # 只清理坏链接
+skillhub undo                     # 撤销上一次；批量写入时要加 --yes
+skillhub agents <key> on|off      # 启用或隐藏一个 agent
+```
+
+所有命令都支持 `--json`，失败时也返回 JSON 并以退出码 1 结束。
+
+**关于 `undo` 的一个坑**：30 分钟内连续执行的 `describe`／`categorize`／`note` 会合并成同一个备份会话。这时 `undo` 一次退的是整批，不是最后一条，而且中文介绍无法再恢复。所以它会先报出数量并要求 `--yes`——看到这个提示要先跟用户确认，不要直接补 `--yes` 重跑。
+
 ## 执行流程
 
 ### Step 0 确保命令可用

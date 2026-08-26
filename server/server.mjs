@@ -61,15 +61,18 @@ export function createApp(customHome = null) {
     return { ...registry, agentMeta };
   }
 
-  // The page is entirely self-contained — no CDN, no remote font, no external
-  // image — so it can be locked down completely. A good part of what it renders
-  // comes out of third-party SKILL.md files, and until now escapeHtml in the
-  // browser was the only thing standing between that text and the DOM.
+  // The shipped page is entirely self-contained — no CDN, no remote font, no
+  // external image — so it can be locked down completely. A good part of what it
+  // renders comes out of third-party SKILL.md files, and escapeHtml in the
+  // browser is the only other thing standing between that text and the DOM.
   app.use("/*", async (c, next) => {
     await next();
+    // /preview is the local design workspace; it is not part of the published
+    // package, so this branch never fires for an installed copy.
+    const isPreview = c.req.path.startsWith("/preview");
     c.header(
       "Content-Security-Policy",
-      "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
+      `default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors ${isPreview ? "'self'" : "'none'"}`
     );
     c.header("X-Content-Type-Options", "nosniff");
     c.header("Referrer-Policy", "no-referrer");

@@ -5,7 +5,7 @@ import { getPaths, getAgentDirs, isAgentVisible, ROOT_DIR } from "./core/paths.m
 import { buildRegistry, loadUserOverrides } from "./core/registry.mjs";
 import { buildSyncPlan, applySyncPlan } from "./core/sync.mjs";
 import { runDoctor, isDefaultReportItem } from "./core/doctor/index.mjs";
-import { undoLastBackup, listBackups } from "./core/backup.mjs";
+import { undoLastBackup, listBackups, peekLastBackup } from "./core/backup.mjs";
 import {
   toggleAgent, removeSkill, updateSkill, setMetadataOverride, setAgentVisibility,
   listTrash, restoreTrash,
@@ -331,6 +331,26 @@ async function main() {
     }
 
     case "undo": {
+      // A run of writes shares one session, so "undo the last thing" can mean
+      // taking back eighty-four blurbs. Worse, when that batch also created
+      // overrides.json, reversing it removes the file and there is no copy to
+      // put back and no redo. Say the number before doing it, not after.
+      const next = peekLastBackup(paths.BACKUPS_DIR);
+      const batched = next?.manifest.batchedWrites || 1;
+      if (batched > 1 && !args.includes("--yes")) {
+        const lines = [
+          `这次撤销会一起回退 ${batched} 次写入（备份会话 ${next.id}），不只是最后一次。`,
+          `它们会回到这一批开始之前的状态，手写的中文介绍和备注无法再恢复。`,
+          `确认请加 --yes： skillhub undo --yes`,
+        ];
+        if (jsonMode) {
+          console.log(JSON.stringify({ ok: false, needsConfirmation: true, batchedWrites: batched, sessionId: next.id }, null, 2));
+        } else {
+          for (const line of lines) console.error(line);
+        }
+        process.exitCode = 1;
+        return;
+      }
       const result = undoLastBackup(paths.BACKUPS_DIR);
       if (jsonMode) {
         console.log(JSON.stringify(result, null, 2));
