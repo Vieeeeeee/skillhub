@@ -268,8 +268,8 @@ check-update       检查 SkillHub 是否有新版本
 |---|---|---|
 | Node.js | 支持 20+ | CI 矩阵为 Node 20、22、24，三个系统各跑一遍，共 9 个 job。24 是发版流水线实际执行测试的版本。 |
 | macOS | 本机已验证 | 源码测试和本地打包安装后的面板启动测试已通过。 |
-| Linux | CI 已验证 | 最近一次 GitHub Actions 在 Node.js 20/22/24 下通过；使用前仍需核对本机 Agent 路径。 |
-| Windows | CI 已验证 | 最近一次 GitHub Actions 在 Node.js 20/22/24 下通过。Junction 行为仍受本机文件系统策略和权限影响，建议先看 `sync`，再决定是否 `--apply`。 |
+| Linux | CI 已验证 | 2026-08-27 的 GitHub Actions 在 Node.js 20/22/24 下通过；使用前仍需核对本机 Agent 路径。 |
+| Windows | CI 已验证 | 2026-08-27 的 GitHub Actions 在 Node.js 20/22/24 下通过。Junction 行为仍受本机文件系统策略和权限影响，建议先看 `sync`，再决定是否 `--apply`。多条命令同时跑时这里仍可能写清单失败——Windows 不允许 rename 到一个被别的进程打开着的文件。 |
 | Claude、Gemini、Hermes | 链接适配 | 路径可在 `rules/agents.json` 调整。 |
 | Codex | 原生适配 | 直接读配置里的共享 Skills 目录，不需要软链。它同时也扫自己的 `~/.codex/skills`（Codex 自带的 Skill Creator 默认装在那儿），只存在于那里的 Skill 会在同步计划里报出来。请按本机 Codex 版本复核。 |
 | Cursor | 实验性 | 用于验证配置驱动的 Agent 扩展，目前不宣称完整适配。 |
