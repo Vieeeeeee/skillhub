@@ -4,7 +4,10 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  # contents: write is what lets the last step cut the GitHub Release. Publishing
+  # to npm alone left the repository page advertising an old version as "Latest",
+  # which reads as an abandoned project to anyone landing on it.
+  contents: write
   id-token: write
 
 concurrency:
@@ -43,3 +46,29 @@ jobs:
 
     - name: Publish public package
       run: npm publish --access public --provenance
+
+    # Runs only after npm accepted the package, so a GitHub Release never
+    # announces a version nobody can install. The notes are the CHANGELOG
+    # section for this version, which is written before the tag exists.
+    - name: Cut the GitHub Release
+      env:
+        GH_TOKEN: ${{ github.token }}
+        TAG: ${{ github.ref_name }}
+      shell: bash
+      run: |
+        VERSION="${TAG#v}"
+        # From this version's heading to the next one, minus that next heading.
+        awk -v v="$VERSION" '
+          $0 ~ "^## \\[" v "\\]" { in_section = 1; next }
+          in_section && /^## \[/  { exit }
+          in_section              { print }
+        ' CHANGELOG.md > release-notes.md
+        if [[ ! -s release-notes.md ]]; then
+          echo "No CHANGELOG section for $VERSION; refusing to publish empty notes." >&2
+          exit 1
+        fi
+        gh release create "$TAG" \
+          --title "SkillHub $TAG" \
+          --notes-file release-notes.md \
+          --verify-tag \
+          --latest
