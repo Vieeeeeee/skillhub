@@ -44,6 +44,11 @@ that were not wrong, and offering buttons for work that could not be done.
   the stable version shipped.
 - A leaderboard missing its seed repositories expires in an hour instead of a
   week, so one rate-limited moment no longer leaves the list short for days.
+- An Agent that cannot reach a Skill no longer advertises a trigger word for it.
+  Restoring from the trash puts the Skill back without its links, and `unlink`
+  removes one on purpose; both left the table offering a command that does
+  nothing. The trigger list now follows the same "can this Agent read it" answer
+  the rest of the row already uses.
 
 ### Documentation
 
