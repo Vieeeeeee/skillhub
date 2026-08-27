@@ -93,6 +93,12 @@ test("registry uses configured agent triggers and metadata overrides", (t) => {
   writeFileSync(join(skillDir, "SKILL.md"), "---\nname: demo\ndescription: demo skill\n---\n");
   // cursor is switched on explicitly; gemini is left to the default, and its
   // directory does not exist in this sandbox.
+  // The link has to exist for cursor to have a trigger word at all: a trigger
+  // is what an Agent that can reach the Skill would answer to, and cursor can
+  // only reach it through this link.
+  const cursorSkills = join(tmp, ".cursor", "skills");
+  mkdirSync(cursorSkills, { recursive: true });
+  symlinkSync(skillDir, join(cursorSkills, "demo"), "dir");
   saveUserOverrides(join(tmp, ".skillhub", "overrides.json"), {
     notesOverrides: { demo: "portable note" },
     managedSkills: { demo: "external-manager" },
@@ -107,6 +113,16 @@ test("registry uses configured agent triggers and metadata overrides", (t) => {
   // link-based Agents trigger on the directory name.
   assert.equal(reg.skills.demo.triggers.codex, "$demo");
   assert.equal(reg.skills.demo.triggers.cursor, "/demo");
+
+  // Take the link away and the trigger word goes with it. An Agent that cannot
+  // reach the Skill has no command to offer, and printing one sends the user to
+  // type something that does nothing — which is what `unlink` and a restore
+  // from the trash both used to leave behind.
+  rmSync(join(cursorSkills, "demo"));
+  const afterUnlink = buildRegistry(tmp);
+  assert.equal(afterUnlink.skills.demo.agents.cursor, false);
+  assert.equal(afterUnlink.skills.demo.triggers.cursor, undefined);
+  assert.equal(afterUnlink.skills.demo.triggers.codex, "$demo", "the native Agent still reaches it");
 
   // An Agent that is not in use is left out of the registry entirely, so the
   // switch means the same thing to `scan`, to the sync planner and to the

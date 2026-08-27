@@ -481,8 +481,14 @@ export function buildRegistry(customHome = null) {
         Object.entries(agentDirs)
           .filter(([agentKey, cfg]) => isAgentVisible(cfg, agentKey, overrides))
           // An Agent that cannot read the Skill has no trigger word for it.
-          // Listing one told the user to type a command that does nothing.
-          .filter(([agentKey]) => !agentOnly || agentKey === agentOnly)
+          // Listing one tells the user to type a command that does nothing.
+          //
+          // `agents` above already answers "can this Agent read it": the link
+          // exists, or the Agent scans the SSOT natively. Asking that map is
+          // what makes this true after an unlink or a trash restore too — both
+          // leave the Skill in place with its links gone, and both used to keep
+          // advertising the trigger word for Agents that had just lost it.
+          .filter(([agentKey]) => agents[agentKey])
           .map(([agentKey, cfg]) => [
             agentKey,
             `${cfg.triggerPrefix || "/"}${cfg.type === "native" ? fmName || name : name}`,
