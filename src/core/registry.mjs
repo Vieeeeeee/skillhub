@@ -113,6 +113,28 @@ export function withOverridesLock(overridesFile, fn) {
   }
 }
 
+// POSIX swaps the inode and the rename always lands. Windows refuses to rename
+// onto a file another process currently has open, which is exactly what two
+// concurrent commands do to registry.json — every command rebuilds it after the
+// override lock has already been released. The write then failed with EPERM and
+// the command reported failure for work that had actually succeeded.
+//
+// A few short retries clear it, because nothing holds this file for long. A lock
+// would be the heavier answer for a file that is a rebuildable cache.
+function renameWithRetry(tempFile, file) {
+  for (let attempt = 0; ; attempt += 1) {
+    try {
+      renameSync(tempFile, file);
+      return;
+    } catch (error) {
+      const contended =
+        error?.code === "EPERM" || error?.code === "EACCES" || error?.code === "EBUSY";
+      if (!contended || attempt >= 10) throw error;
+      sleepSync(20);
+    }
+  }
+}
+
 function writeJsonAtomic(file, value) {
   const dir = dirname(file);
   const tempFile = join(dir, `.skillhub-write-${process.pid}-${randomUUID()}.tmp`);
@@ -121,7 +143,7 @@ function writeJsonAtomic(file, value) {
   }
   try {
     writeFileSync(tempFile, JSON.stringify(value, null, 2), { encoding: "utf-8", mode: 0o600 });
-    renameSync(tempFile, file);
+    renameWithRetry(tempFile, file);
   } catch (error) {
     try {
       unlinkSync(tempFile);
