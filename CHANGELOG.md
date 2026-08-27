@@ -4,6 +4,24 @@ All notable changes to SkillHub will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.1] - 2026-08-27
+
+### Fixed
+
+- Running several commands at once no longer fails on Windows. Every command
+  rebuilds `registry.json` after the override lock has been released, so two
+  concurrent `describe` calls raced on that one rename. POSIX swaps the inode
+  and always lands; Windows refuses to rename onto a file another process holds
+  open, and the command then reported failure for a write that had already
+  succeeded. The rename now retries briefly — `overrides.json`, the file holding
+  data that cannot be rebuilt, has had a lock all along.
+
+### Internal
+
+- Publishing to npm now cuts the matching GitHub Release, with the notes taken
+  from this file. Tags for 0.3.0, 0.4.0 and 0.5.0 all shipped without one, so
+  the repository page advertised 0.2.0 as the latest version for three days.
+
 ## [0.5.0] - 2026-08-26
 
 A second adversarial review, this time aimed at the health report itself. The

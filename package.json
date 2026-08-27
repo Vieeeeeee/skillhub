@@ -1,6 +1,6 @@
 {
   "name": "@wsiwsii/skillhub",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "description": "Local-first, portable manager and health doctor for AI Agent Skills",
   "type": "module",
   "bin": {
